@@ -4,13 +4,15 @@ CFLAGS = -g -Wall -I.
 # -- list of dependencies -> header files
 DEPS = 	fifo/fifo.h						\
 	    serial/serial.h					\
-	    buffer_task/buffer_task.h
+	    buffer_task/buffer_task.h		\
+		storage_task/storage_task.h
 
 # -- list of objet files
 OBJ = 	main.o							\
 		fifo/fifo.o						\
 		serial/serial.o					\
-		buffer_task/buffer_task.o
+		buffer_task/buffer_task.o		\
+		storage_task/storage_task.o
 
 # -- list of phony targets
 .PHONY: clean

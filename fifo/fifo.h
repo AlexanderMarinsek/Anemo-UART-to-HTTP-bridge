@@ -13,7 +13,7 @@ struct _str_fifo {
 
 typedef struct _str_fifo str_fifo_t;
 
-/* uint32_t str_fifo_read(fifo_t *fifo, char *data);
+/* int8_t str_fifo_read(fifo_t *fifo, char *data);
  *  function for reading from fifo buffer of strings
  *   fifo - address of fifo for reading
  *   data - address of where read data are stored
@@ -24,7 +24,7 @@ int8_t str_fifo_read(str_fifo_t *fifo, char *data);
 
 int8_t str_fifo_read_auto_inc(str_fifo_t *fifo, char *data);
 
-/* uint32_t str_fifo_write(fifo_t *fifo, char *data);
+/* int8_t str_fifo_write(fifo_t *fifo, char *data);
  *  function for writing to fifo buffer of strings
  *   fifo - address of fifo for writing
  *   data - address of data to be written into fifo
@@ -43,7 +43,7 @@ int8_t str_fifo_write(str_fifo_t *fifo, char *data);
  */
 int8_t fifo_increment_read_idx(str_fifo_t *fifo);
 
-/* uint32_t setup_request_buffer(void)
+/* int8_t setup_request_buffer(void)
  *  allocate space for new fifo buffer containing strings
  *   request data buffer: only for data, not full request!
  *   data_save buffer: new line for output file

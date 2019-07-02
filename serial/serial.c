@@ -8,7 +8,7 @@
 #include <termios.h>        /* POSIX terminal control definitions */
 #include <stdint.h>         /* Data types */
 #include <sys/signal.h>     /* UART interrupt */
-#include <string.h>         /* Memcpy */
+#include <string.h>         /* For memset */
 //#include <errno.h>          /* Error number definitions */
 
 
@@ -25,7 +25,7 @@ int rx_length = 0;
 char rx_buffer[RAW_FIFO_STRING_SIZE];
 
 /* Fifo for raw serial data */
-str_fifo_t fifo = {
+static str_fifo_t fifo = {
 	0,
 	0,
 	SERIAL_FIFO_BUFFER_SIZE,

@@ -12,7 +12,7 @@
 
 /* Local copy of pointer to three fifo buffers
  *  1: Raw incoming UART data
- *  2: Local storage buffer
+ *  2: Data storage buffer
  *  3: Requests buffer
  */
 static str_fifo_t *fifo_buffers[3];
@@ -22,6 +22,9 @@ static char tmp_serial_buffer[FIFO_STRING_SIZE];
 
 /* Save incoming JSON data to buffer */
 static struct Json_incoming json_incoming;
+
+/* Check that all levels (nested objects) of JSON object were noticed */
+static int8_t json_depth_valid = -1;
 
 /* Calendar time (Epoch time) - usually signed int */
 static time_t time_epoch;
@@ -88,6 +91,18 @@ int8_t buffer_task_run (void) {
             /* Add timestamp to JSON string */
             _add_timestamp_to_json();
 
+            str_fifo_write(fifo_buffers[1], json_incoming.str_buffer.buffer);
+
+            //str_fifo_t *fifo_ = fifo_buffers[1];
+
+            char data[512];
+            str_fifo_read(fifo_buffers[1], data);
+            printf ("###%s\n", data);
+            str_fifo_read(fifo_buffers[1], data);
+            printf ("###%s\n", data);
+            str_fifo_read(fifo_buffers[1], data);
+            printf ("###%s\n", data);
+
             printf ("%s\n", json_incoming.str_buffer.buffer);
             // Save to other buffers
 
@@ -113,8 +128,13 @@ static int8_t _get_json_from_raw (void) {
         if (tmp_serial_buffer[i] == '{') {
             /* Increment number of nested objects */
             json_incoming.num_of_nested_obj++;
+            /* Whole JSON object was noticed */
+            if (json_incoming.num_of_nested_obj == EXPECTED_JSON_DEPTH) {
+                json_depth_valid = 0;
+            }
             /* Outer JSON braces */
             if (json_incoming.num_of_nested_obj == 1) {
+                json_depth_valid = -1;
                 _set_json_incoming_status_to_copy();
                 /* Reset JSON buffer */
                 _reset_json_str_buffer();
@@ -122,14 +142,23 @@ static int8_t _get_json_from_raw (void) {
         }
         /* Get JSON closing braces */
         else if (tmp_serial_buffer[i] == '}') {
-            /* Opening braces were already found */
-            if (json_incoming.num_of_nested_obj > 0) {
-                /* Decrement number of nested objects */
-                json_incoming.num_of_nested_obj--;
-                /* Reached end of JSON */
-                if (json_incoming.num_of_nested_obj == 0) {
-                    _set_json_incoming_status_to_copy_stop();
+            /* Opening braces were not already found */
+            if (json_incoming.num_of_nested_obj <= 0) {
+                _set_json_incoming_status_to_idle();
+                _reset_json_str_buffer();
+                return 1;
+            }
+            /* Decrement number of nested objects */
+            json_incoming.num_of_nested_obj--;
+            /* Reached end of JSON */
+            if (json_incoming.num_of_nested_obj == 0) {
+                /* Only inner JSON object was copied */
+                if (json_depth_valid != 0) {
+                    _set_json_incoming_status_to_idle();
+                    _reset_json_str_buffer();
+                    return 1;
                 }
+                _set_json_incoming_status_to_copy_stop();
             }
         }
         /* Serial buffer is zero padded at the end */

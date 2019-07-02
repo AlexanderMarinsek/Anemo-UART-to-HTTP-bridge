@@ -4,7 +4,7 @@
 #include <stdlib.h> /* exit */
 
 
-/* uint32_t str_fifo_read(fifo_t *fifo, char *data);
+/* int8_t str_fifo_read(fifo_t *fifo, char *data);
  *  function for reading from fifo buffer of strings
  *   fifo - address of fifo for reading
  *   data - address of where read data are stored
@@ -33,7 +33,7 @@ int8_t str_fifo_read_auto_inc(str_fifo_t *fifo, char *data){
 
 
 
-/* uint32_t str_fifo_write(fifo_t *fifo, char *data);
+/* int8_t str_fifo_write(fifo_t *fifo, char *data);
  *  function for writing to fifo buffer of strings
  *   fifo - address of fifo for writing
  *   data - address of data to be written into fifo
@@ -47,6 +47,7 @@ int8_t str_fifo_write(str_fifo_t *fifo, char *data){
     // -- allow circular overwrite
 	if(tmp_write_idx == fifo->read_idx){
         fifo->read_idx = (fifo->read_idx+1)%fifo->buf_size;
+		printf("Fifo: circural overwrite\n");
     }
     for(i=0; i < fifo->str_size; i++){
         fifo->buffer[fifo->write_idx][i] = data[i];
@@ -56,7 +57,7 @@ int8_t str_fifo_write(str_fifo_t *fifo, char *data){
 }
 
 
-/* uint32_t fifo_increment_read(str_fifo_t *fifo)
+/* int8_t fifo_increment_read(str_fifo_t *fifo)
  *  manually increment fifo read pointer, only turn fifo after incrementation
  *   fifo - address of fifo for writing
  *
@@ -74,7 +75,7 @@ int8_t fifo_increment_read_idx(str_fifo_t *fifo){
 }
 
 
-/* uint32_t setup_request_buffer(void)
+/* int8_t setup_request_buffer(void)
  *  allocate space for new fifo buffer containing strings
  *   request data buffer: only for data, not full request!
  *   data_save buffer: new line for output file

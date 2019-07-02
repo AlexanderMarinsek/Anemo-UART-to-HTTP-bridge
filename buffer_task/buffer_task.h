@@ -11,6 +11,8 @@
 #define JSON_INCOMING_COPY_MASK             (0x01)
 #define JSON_INCOMING_STOP_COPY_MASK        (0x02)
 
+#define EXPECTED_JSON_DEPTH                 (2)
+
 
 /* JSON string buffer */
 struct Json_str_buffer {
