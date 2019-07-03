@@ -2,17 +2,21 @@ CC = gcc
 CFLAGS = -g -Wall -I.
 
 # -- list of dependencies -> header files
-DEPS = 	fifo/fifo.h						\
-	    serial/serial.h					\
-	    buffer_task/buffer_task.h		\
-		storage_task/storage_task.h
+DEPS = 	fifo/fifo.h								\
+		timestamp/timestamp.h					\
+	    serial/serial.h							\
+	    tasks/buffer_task/buffer_task.h			\
+		tasks/storage_task/storage_task.h		\
+		tasks/requests_task/requests_task.h
 
 # -- list of objet files
-OBJ = 	main.o							\
-		fifo/fifo.o						\
-		serial/serial.o					\
-		buffer_task/buffer_task.o		\
-		storage_task/storage_task.o
+OBJ = 	main.o									\
+		fifo/fifo.o								\
+		timestamp/timestamp.o					\
+		serial/serial.o							\
+		tasks/buffer_task/buffer_task.o			\
+		tasks/storage_task/storage_task.o		\
+		tasks/requests_task/requests_task.o
 
 # -- list of phony targets
 .PHONY: clean

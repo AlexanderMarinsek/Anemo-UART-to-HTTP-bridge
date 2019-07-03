@@ -1,8 +1,8 @@
 #ifndef BUFFER_TASK
 #define BUFFER_TASK
 
-#include "../fifo/fifo.h"
-#include "../serial/serial.h"
+#include "../../fifo/fifo.h"
+//#include "../../serial/serial.h"
 
 #include <stdint.h>
 
@@ -18,7 +18,7 @@
 struct Json_str_buffer {
     char buffer[FIFO_STRING_SIZE] ;
     uint16_t current_write_idx;
-    uint16_t start_write_idx;
+    //uint16_t start_write_idx;
 };
 
 /* JSON incoming data */

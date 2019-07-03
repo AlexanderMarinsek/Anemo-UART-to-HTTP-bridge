@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+
+#define FIFO_STRING_SIZE                    (512)
+
+
 struct _str_fifo {
 	uint32_t read_idx;
 	uint32_t write_idx;

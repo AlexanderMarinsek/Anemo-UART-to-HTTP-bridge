@@ -2,20 +2,21 @@
 #define SERIAL_H
 
 #include "../fifo/fifo.h"
+#include "../timestamp/timestamp.h"
 #include <stdint.h>                 /* Data types */
 
-
+#define PORTNAME_STRING_LEN                 (64)
 #define PORT_PATHNAME                       "/dev/ttyACM0"
 
 #define SERIAL_FIFO_BUFFER_SIZE             (64)
 
-#define TIMESTAMP_STRING_SIZE               (64)
-#define FIFO_STRING_SIZE                    (512)
+//#define TIMESTAMP_STRING_SIZE               (64)
+//#define FIFO_STRING_SIZE                    (512)
 #define RAW_FIFO_STRING_SIZE                \
-    (FIFO_STRING_SIZE - TIMESTAMP_STRING_SIZE)
+    (FIFO_STRING_SIZE - TIMESTAMP_JSON_STRING_SIZE)
 
-#define TIMESTAMP_KEY_FORMAT                \
-    "\"timestamp\":\"%04d-%02d-%02dT%02d:%02d\","
+/*#define TIMESTAMP_KEY_FORMAT                \
+    "\"timestamp\":\"%04d-%02d-%02dT%02d:%02d\","*/
 
 
 /*class SerialImp : public Serial {
@@ -33,17 +34,17 @@ protected:
     str_fifo_t *fifo;
 };*/
 
-
-/*  Init serial port.
- *  return: 0 on success, -1 on error
- */
-int8_t serial_init_port (void);
-
 /*  Init raw serial data fifo.
  *   p1: pointer to fifo struct pointer
  *  return: 0 on success, -1 on error
  */
 int8_t serial_init_fifo(str_fifo_t **fifo);
+
+/*  Init serial port.
+ *   p1: pointer to fifo struct pointer
+ *  return: 0 on success, -1 on error
+ */
+int8_t serial_init_port (char *_portname);
 
 
 #endif

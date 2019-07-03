@@ -1,11 +1,12 @@
 #include "buffer_task.h"
-#include "../fifo/fifo.h"
-#include "../serial/serial.h"
+#include "../../fifo/fifo.h"
+#include "../../timestamp/timestamp.h"
+//#include "../../serial/serial.h"
 
-#include <stdint.h>
-#include <string.h>
-#include <stdio.h>      /* Standard input/output definitions */
-#include <time.h>
+#include <stdint.h>         /* Data types */
+#include <string.h>         /* For memory operations */
+#include <stdio.h>          /* Standard input/output definitions */
+//#include <time.h>           /* For timestamp */
 
 
 /* LOCALS *********************************************************************/
@@ -26,18 +27,11 @@ static struct Json_incoming json_incoming;
 /* Check that all levels (nested objects) of JSON object were noticed */
 static int8_t json_depth_valid = -1;
 
-/* Calendar time (Epoch time) - usually signed int */
-static time_t time_epoch;
-/* Pointer to time structure, for specifications view 'ctime' at 'man7' */
-static struct tm *time_human;
-/* Space for temporary timestamp */
-static char timestamp [TIMESTAMP_STRING_SIZE];
-
 
 /* PROTOTYPES *****************************************************************/
 
 static int8_t _get_json_from_raw (void);
-static int8_t _reset_json_str_buffer(void);
+static int8_t _reset_json_incoming_str_buffer(void);
 
 static void _set_json_incoming_status_to_copy (void);
 static void _set_json_incoming_status_to_copy_stop (void);
@@ -47,11 +41,11 @@ static int8_t _is_json_string_copy(void);
 static int8_t _is_json_string_buffer_full(void);
 static int8_t _is_json_string_copy_stop(void);
 
-static int8_t _refresh_timestamp (void);
+//static int8_t _refresh_timestamp (void);
 static int8_t _add_timestamp_to_json (void);
 
 
-/* FUNCTIONS ******************************************************************/
+/* FUNCTIONS (GLOBAL) *********************************************************/
 
 /*  Get latest row of raw serial data, look for JSON and if present, copy to
  *  local storage and requests buffer.
@@ -83,35 +77,28 @@ int8_t buffer_task_run (void) {
     if (str_fifo_read_auto_inc(fifo_buffers[0], tmp_serial_buffer) == 0) {
         /* Check for JSON format */
         if (_get_json_from_raw() == 0) {
-            printf("FOUND\n");
             printf("%s\n", json_incoming.str_buffer.buffer);
 
-            /* Get latest timestamp from system */
-            _refresh_timestamp();
-            /* Add timestamp to JSON string */
-            _add_timestamp_to_json();
+            /* Add system timestamp to JSON string */
+            if (_add_timestamp_to_json() != 0) {
+                printf ("Error: _add_timestamp_to_json\n");
+                return -1;
+            }
 
+            /* Write JSON data to data storage buffer */
             str_fifo_write(fifo_buffers[1], json_incoming.str_buffer.buffer);
 
-            //str_fifo_t *fifo_ = fifo_buffers[1];
+            /* Write JSON data to requests buffer */
+            str_fifo_write(fifo_buffers[2], json_incoming.str_buffer.buffer);
 
-            char data[512];
-            str_fifo_read(fifo_buffers[1], data);
-            printf ("###%s\n", data);
-            str_fifo_read(fifo_buffers[1], data);
-            printf ("###%s\n", data);
-            str_fifo_read(fifo_buffers[1], data);
-            printf ("###%s\n", data);
-
-            printf ("%s\n", json_incoming.str_buffer.buffer);
-            // Save to other buffers
-
-            _reset_json_str_buffer();
+            _reset_json_incoming_str_buffer();
         }
     }
     return 0;
 }
 
+
+/* FUNCTIONS (LOCAL) **********************************************************/
 
 /* JSON ***********************************************************************/
 
@@ -137,7 +124,7 @@ static int8_t _get_json_from_raw (void) {
                 json_depth_valid = -1;
                 _set_json_incoming_status_to_copy();
                 /* Reset JSON buffer */
-                _reset_json_str_buffer();
+                _reset_json_incoming_str_buffer();
             }
         }
         /* Get JSON closing braces */
@@ -145,7 +132,7 @@ static int8_t _get_json_from_raw (void) {
             /* Opening braces were not already found */
             if (json_incoming.num_of_nested_obj <= 0) {
                 _set_json_incoming_status_to_idle();
-                _reset_json_str_buffer();
+                _reset_json_incoming_str_buffer();
                 return 1;
             }
             /* Decrement number of nested objects */
@@ -155,7 +142,7 @@ static int8_t _get_json_from_raw (void) {
                 /* Only inner JSON object was copied */
                 if (json_depth_valid != 0) {
                     _set_json_incoming_status_to_idle();
-                    _reset_json_str_buffer();
+                    _reset_json_incoming_str_buffer();
                     return 1;
                 }
                 _set_json_incoming_status_to_copy_stop();
@@ -178,15 +165,15 @@ static int8_t _get_json_from_raw (void) {
         if (_is_json_string_buffer_full() == 0) {
             printf("Error: incoming too long, json buffer full\n");
             _set_json_incoming_status_to_idle();
-            _reset_json_str_buffer();
+            _reset_json_incoming_str_buffer();
         }
 
-        /* Return to idle mode */
+        /* Finished, return to idle mode */
         if (_is_json_string_copy_stop() == 0) {
             /* Add null at end */
             json_incoming.str_buffer.buffer
                 [json_incoming.str_buffer.current_write_idx] = '\0';
-            printf("---%s---\n", json_incoming.str_buffer.buffer);
+            //printf("---%s---\n", json_incoming.str_buffer.buffer);
             _set_json_incoming_status_to_idle();
             memset(tmp_serial_buffer, 0, FIFO_STRING_SIZE);
             return 0;
@@ -199,10 +186,10 @@ static int8_t _get_json_from_raw (void) {
 /* Reset JSON buffer
  *
  */
-int8_t _reset_json_str_buffer (void) {
+int8_t _reset_json_incoming_str_buffer (void) {
     memset(json_incoming.str_buffer.buffer, 0, FIFO_STRING_SIZE);
     json_incoming.str_buffer.current_write_idx = 0;
-    json_incoming.str_buffer.start_write_idx = 0;
+    //json_incoming.str_buffer.start_write_idx = 0;
     return 0;
 }
 
@@ -245,40 +232,33 @@ static int8_t _is_json_string_copy_stop(void){
  */
 static int8_t _add_timestamp_to_json (void) {
     char tmp_json[FIFO_STRING_SIZE] = {0};
+    char timestamp [TIMESTAMP_JSON_STRING_SIZE] = {0};
+
+    /* Get JSON formatted timestamp */
+    if (get_timestamp_json_w_comma(timestamp) != 0) {
+        printf("Error: get_timestamp_json_w_comma\n");
+        return -1;
+    }
 
     int tmp_write_idx = 0;
     int buf_write_idx = 0;
 
+    /* Add opening braces '{' */
     tmp_json[tmp_write_idx] = json_incoming.str_buffer.buffer[buf_write_idx];
     tmp_write_idx++;
     buf_write_idx++;
 
+    /* Add timestamp */
     memcpy(&tmp_json[tmp_write_idx], timestamp, strlen(timestamp));
     tmp_write_idx += strlen(timestamp);
 
+    /* Add received JSON data */
     memcpy(&tmp_json[tmp_write_idx],
         &json_incoming.str_buffer.buffer[buf_write_idx],
         strlen(json_incoming.str_buffer.buffer));
 
+    /* Overwrite incoming JSON data */
     memcpy(json_incoming.str_buffer.buffer, tmp_json, strlen(tmp_json) + 1);
-
-    return 0;
-}
-
-/*  Get latest timestamp from the system and store in timestamp buffer.
- */
-static int8_t _refresh_timestamp (void) {
-    // -- save current time since Unix Epoch in seconds
-    time_epoch = time(NULL);
-    // -- save current broken down time to time structure
-    time_human = localtime(&time_epoch);
-
-    // -- convert to standardised timestamp
-    sprintf(timestamp, TIMESTAMP_KEY_FORMAT,
-        time_human->tm_year+1900, time_human->tm_mon+1, time_human->tm_mday,
-        time_human->tm_hour, time_human->tm_min);
-
-    printf("%s\n", timestamp);
 
     return 0;
 }

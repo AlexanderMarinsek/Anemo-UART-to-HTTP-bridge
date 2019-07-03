@@ -8,21 +8,11 @@
 #include <termios.h>        /* POSIX terminal control definitions */
 #include <stdint.h>         /* Data types */
 #include <sys/signal.h>     /* UART interrupt */
-#include <string.h>         /* For memset */
+#include <string.h>         /* For memory operations */
 //#include <errno.h>          /* Error number definitions */
 
 
 /* LOCALS *********************************************************************/
-
-/* File descriptor for the port */
-int fd;
-/* Create signal handler structure */
-struct sigaction saio;
-
-/* Length of received data */
-int rx_length = 0;
-/* Received serial data, copied on interrupt to raw buffer */
-char rx_buffer[RAW_FIFO_STRING_SIZE];
 
 /* Fifo for raw serial data */
 static str_fifo_t fifo = {
@@ -33,16 +23,30 @@ static str_fifo_t fifo = {
 	NULL
 };
 
+/* File descriptor for the port */
+int fd;
+/* Absolute path to port */
+static char portname[PORTNAME_STRING_LEN];
+
+/* Length of received data */
+int rx_length = 0;
+/* Received serial data, copied on interrupt to raw buffer */
+char rx_buffer[RAW_FIFO_STRING_SIZE];
+
+/* Create signal handler structure */
+struct sigaction saio;
+
 
 /* PROTOTYPES *****************************************************************/
 
 static int8_t _open_port(void);
 static int8_t _set_up_port (void);
 static int8_t _add_signal_handler_IO (void);
+static int8_t _set_portname (char *_portname);
 static void signal_handler_IO (int status);
 
 
-/* FUNCTIONS ******************************************************************/
+/* FUNCTIONS (GLOBAL) *********************************************************/
 
 /*  Init raw serial data fifo.
  */
@@ -61,17 +65,29 @@ int8_t serial_init_fifo(str_fifo_t **_fifo){
 
 /*  Init serial port.
  */
-int8_t serial_init_port (void) {
-    _open_port();
-    if (fd == -1) {
-        return -1;
-        printf("Error: _open_port");
-    }
-    _set_up_port();
-    _add_signal_handler_IO();
-    return 0;
+int8_t serial_init_port (char *_portname) {
+	int8_t error_control = 0;
+	error_control += _set_portname (_portname);
+	error_control += _open_port();
+	error_control += _set_up_port();
+	error_control += _add_signal_handler_IO();
+    return error_control;
 }
 
+
+/* FUNCTIONS (LOCAL) *********************************************************/
+
+/* Save local copy of portname */
+static int8_t _set_portname (char *_portname) {
+    /* Check length */
+    if (strlen(_portname) > PORTNAME_STRING_LEN-1) {
+        printf("Error: storage_task_init_file\n");
+        return -1;
+    }
+	/* Copy to local string */
+    memcpy(portname, _portname, strlen(_portname)+1);
+	return 0;
+}
 
 /*  Set up port.
  */
@@ -120,7 +136,7 @@ static int8_t _open_port(void) {
     *   O_NOCTTY - Leave process control to other 'jobs' for better portability.
     *   O_NDELAY - Enable non-blocking read
     */
-    fd = open(PORT_PATHNAME, O_RDONLY | O_NOCTTY | O_NDELAY);
+    fd = open(portname, O_RDONLY | O_NOCTTY | O_NDELAY);
 
     /* Catch FD error */
     if (fd == -1) {
