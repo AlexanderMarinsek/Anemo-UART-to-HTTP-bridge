@@ -25,8 +25,6 @@ int32_t socket_state;
 
 // -- LOCALS -------------------------------------------------------------------
 
-// -- reset to zero each time socket state moves on
-static uint32_t socket_error_count = 0;
 
 static int32_t sockfd;
 static struct sockaddr_in serv_addr;
@@ -34,7 +32,7 @@ static struct sockaddr_in serv_addr;
 
 
 /* Fifo for data storage */
-static str_fifo_t fifo = {
+static str_fifo_t requests_fifo = {
 	0,
 	0,
 	REQUESTS_FIFO_BUF_SIZE,
@@ -49,17 +47,18 @@ static char timestamp[TIMESTAMP_RAW_STRING_SIZE];
 static char host[HOST_ADDR_BUF_LEN];
 //static int16_t portno;
 
-char  request[REQUEST_BUF_SIZE],
-      response[RESPONSE_BUF_SIZE],
-      request_data[REQUEST_FIFO_STR_SIZE+1];
+char  request_buf[REQUEST_BUF_SIZE],
+      response_buf[RESPONSE_BUF_SIZE],
+      request_data_buf[REQUEST_FIFO_STR_SIZE+1];
 
 
 int8_t _create_socket(void);
-int8_t write_socket(void);
 int8_t _connect_socket(void);
+int8_t _write_socket(void);
+int8_t _wait_for_response(void);
 int8_t read_socket(void);
 int8_t close_socket(void);
-int8_t _clear_response_memory(void);
+int8_t _clear_requests_buffers(void);
 
 
 // -- FUNS ---------------------------------------------------------------------
@@ -69,10 +68,10 @@ int8_t _clear_response_memory(void);
  */
 int8_t requests_task_init_fifo (str_fifo_t **_fifo) {
     /* Set outer pointer to point to fifo local struct */
-    *_fifo = &fifo;
+    *_fifo = &requests_fifo;
     /* Set up memory for fifo struct and return success/error */
     return setup_str_fifo(
-        &fifo, REQUESTS_FIFO_BUF_SIZE, REQUESTS_FIFO_STR_SIZE);
+        &requests_fifo, REQUESTS_FIFO_BUF_SIZE, REQUESTS_FIFO_STR_SIZE);
 }
 
 
@@ -109,7 +108,7 @@ int8_t requests_task_init_socket(char *_host, int16_t portno) {
     serv_addr.sin_port = htons(portno);
     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
 
-    _clear_response_memory();
+    _clear_requests_buffers();
 
     return 0;
 }
@@ -120,11 +119,15 @@ int8_t requests_task_run(void) {
     switch (socket_state) {
     // -- create
     case SOCKET_CLOSED:
-        // -- check for pending request in buffer and load it
-        if (str_fifo_read(&fifo, request_data) == 0) {
+        /* Check for pending request in buffer */
+        if (str_fifo_read(&requests_fifo, request_data_buf) == 0) {
+        	/* Clear all buffers */
+            _clear_requests_buffers();
+            /* Get row of data from fifo buffer */
+            str_fifo_read(&requests_fifo, request_data_buf);
             if (_create_socket() == 0) {
-                sprintf(request, REQUEST_FMT, host, strlen(request_data), request_data);
-                printf("%lu, %s\n", strlen(request), request);
+                sprintf(request_buf, REQUEST_FMT, host, strlen(request_data_buf), request_data_buf);
+                printf("%lu, %s\n", strlen(request_buf), request_buf);
             }
             return 1;
         }
@@ -140,21 +143,24 @@ int8_t requests_task_run(void) {
         break;
     // -- write
     case SOCKET_CONNECTED:
-        write_socket();
+        _write_socket();
         #if(DEBUG_REQUESTS==1)
         //printf("%d\n",socket_state);
         #endif
+        return 1;
+        break;
+	/* Read from socket */
+    case SOCKET_WRITE_FINISHED:
+    	_wait_for_response ();
         return 1;
         break;
     // -- read
-    case SOCKET_WRITE_FINISHED:
+    case SOCKET_READ_RESPONSE:
         read_socket();
-        #if(DEBUG_REQUESTS==1)
-        //printf("%d\n",socket_state);
-        #endif
         return 1;
         break;
     // -- close
+    case SOCKET_CLOSE_PENDING:
     case SOCKET_READ_FINISHED:
         close_socket();
         #if(DEBUG_REQUESTS==1)
@@ -172,24 +178,49 @@ int8_t requests_task_run(void) {
 
 
 
+/* Select socket protocol and stream, create socket.
+ *
+ *  returns:
+ *		 0: successfully connected
+ *  	-1: error connecting
+ */
 int8_t _create_socket(void) {
 
+    /* Like 'open()' for files
+     *  AF_INET - IPv4
+     *  SOCK_STREAM - Provides sequenced, reliable, two-way streams
+     *  0 - default protocol selector
+     */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    /* Non blocking */
+#if(DEBUG_REQUESTS==1)
+	printf("sockfd: %d\n", sockfd);
+    printf("errno: %d | %s\n", errno, strerror(errno));
+#endif
+
+    /* Normal: EINPROGRESS is thrown in non blocking operations */
+    if (sockfd == -1 && errno != EINPROGRESS) {
+    	printf("***** ERROR *****\n");
+        return -1;
+    }
+
+    /* Set to non blocking */
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
 
-    if (sockfd >= 0) {
-        socket_state = SOCKET_CREATED;
-        return 0;
-    }
-    return 1;
+    /* Set socket state variable */
+    socket_state = SOCKET_CREATED;
+
+#if(DEBUG_REQUESTS==1)
+	printf("SOCKET CREATED\n");
+#endif
+
+    return 0;
 }
 
 
 /*	Connect socket to defined address.
- * 	Exit if maximum socket state elapsed time is reached (close socket)
+ * 	Exit if maximum socket state elapsed time is reached (close socket).
  */
 int8_t _connect_socket(void){
 
@@ -197,12 +228,14 @@ int8_t _connect_socket(void){
 	int connected =
 		connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
 
+#if(DEBUG_REQUESTS==1)
 	printf("connected: %d\n", connected);
     printf("errno: %d | %s\n", errno, strerror(errno));
+#endif
 
     /* Normal: EINPROGRESS is thrown in non blocking operations */
     if (connected != 0 && errno != EINPROGRESS) {
-    	printf("Error\n");
+    	printf("***** ERROR *****\n");
         return -1;
     }
 
@@ -218,40 +251,147 @@ int8_t _connect_socket(void){
 
 
 
-int8_t write_socket(void) {
-    static size_t sent = 0;
-    size_t bytes_write, request_len;
+int8_t _write_socket(void) {
+    static size_t bytes_sent = 0;
+    /* Only write the bytes containing data (string) */
+    size_t request_len = strlen(request_buf);
 
-    request_len = strlen(request);
-    // (socket, buffer pointer + offset, number of characters to send)
-    bytes_write = write(sockfd, request + sent, request_len - sent);
-    sent+=bytes_write;
+    /* Write and get amount of bytes, that were written
+     * 	-1: can't write
+     * 	 0: nothing to write
+     * 	>0: number of bytes written
+     */
+    size_t result =
+		write(sockfd, request_buf + bytes_sent, request_len - bytes_sent);
 
-    #if(DEBUG_REQUESTS==1)
-    printf("\tREQUEST WRITTEN: \n%s\n", request);
-    #endif
+#if(DEBUG_REQUESTS==1)
+	printf("result: %lu, %lu, %lu\n", result, bytes_sent, request_len);
+    printf("errno: %d | %s\n", errno, strerror(errno));
+#endif
 
-    // -- finished writing
-    if (request_len == sent || bytes_write == 0) {
-        sent = 0;
+	/* Normal: EINPROGRESS is thrown in non blocking operations */
+	if (result == -1 && errno != EINPROGRESS) {
+		printf("***** ERROR *****\n");
+		//_report_socket_errno();
+		return -1;
+	}
+
+    /* Increment bytes_read ('request_buf' idx pointer) */
+	bytes_sent += result;
+
+    /* Finished writing (writen everything, nonthing else left) */
+    if (request_len == bytes_sent || result == 0) {
+#if(DEBUG_REQUESTS==1)
+    printf("\tREQUEST WRITTEN: \n%s\n", request_buf);
+#endif
+    	bytes_sent = 0;
         socket_state = SOCKET_WRITE_FINISHED;
-        // -- reset consecutive error counter
-        if (socket_error_count != 0) {
-            get_timestamp_raw(timestamp);
-            printf("(write) SOCKET ERROR CURED | %d | %s\n",
-                socket_error_count, timestamp);
-            socket_error_count = 0;
-        }
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
 
+/*	Wait for a full response.
+ *
+ * 	return:
+ * 		-1: Reached response buffer end
+ * 		 0: Full response received
+ * 		 1: Waiting for full response
+ */
+int8_t _wait_for_response(void) {
+	/* Read bytes amount, or 'response_buf' write ptr */
+    static ssize_t bytes_read = 0;
+    /* Previous amount of bytes, that were read */
+    static ssize_t prev_result = 0;
+
+    /* Read and get amount of bytes, that were read
+     * 	-1: nothing new
+     * 	 0: can't access read data
+     * 	>0: number of bytes read
+     */
+    ssize_t result =
+    		read(sockfd, response_buf + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
+
+#if(DEBUG_REQUESTS==1)
+	printf("result: %lu, %lu, %d\n", result, bytes_read, RESPONSE_BUF_SIZE);
+    printf("errno: %d | %s\n", errno, strerror(errno));
+#endif
+
+    /* Check for socket error */
+    //if (errno == ENOTCONN || errno == EBADF)
+    if (result == 0) {
+		printf("***** ERROR *****\n");
+		//_report_socket_errno();
+        return -1;
+    }
+
+    /* If read successfull, increment bytes_read ('response_buf' idx pointer) */
+    if (result > 0) {
+        bytes_read += result;
+    }
+
+    /* Reached end of buffer */
+    if (bytes_read == RESPONSE_BUF_SIZE-1) {
+	    printf("Response buffer too small\n");
+	    return -1;
+	}
+
+#if(DEBUG_REQUESTS==1)
+    printf("Results: %ld, %ld, %ld\n", prev_result, result, bytes_read);
+    printf("%ld | %d | %s\n", result, errno, strerror(errno));
+	printf("%d | %d | %d | %d | %d | %d | %d | %d \n",
+		EAGAIN, EWOULDBLOCK, EBADF, EFAULT, EINTR, EINVAL, EIO, EISDIR);
+#endif
+
+	/* Check for end of response */
+    if (prev_result > 0) {		/* Previously read something */
+    	if (result == -1) {		/* Nothing new was read */
+#if(DEBUG_REQUESTS==1)
+			printf("\tRESPONSE RECEIVED (%ld):\n%s\n",
+				bytes_read, response_buf);
+#endif
+    		/* Reset static vars */
+    		bytes_read = 0;
+    		prev_result = 0;
+            socket_state = SOCKET_READ_RESPONSE;
+    		return 0;
+    	}
+    }
+
+    /* Set for next function call */
+	prev_result = result;
+
+    return 1;
+}
+
 
 int8_t read_socket(void) {
+
+    /* Pointer to 'request_data_buf' substring inside of 'response_buf' */
+    char *request_ok = strstr(response_buf, request_data_buf);
+
+    /* Check, if match in string comparison exists */
+	if (request_ok != NULL){
+#if(DEBUG_REQUESTS==1)
+		printf("\tRESPONSE OK\n");
+#endif
+		/* Increment read pointer, means next data row can be sent */
+		if (fifo_increment_read_idx(&requests_fifo) != 0) {
+			printf("Tried to increment empty fifo\n");
+			return -1;
+		}
+        socket_state = SOCKET_READ_FINISHED;
+		return 0;
+	}
+
+    return 1;
+
+
+
     /* Pointer to validation substring */
-    char *request_ok;
+    //char *request_ok;
 
 
     static size_t bytes_read = 0;
@@ -259,16 +399,7 @@ int8_t read_socket(void) {
     size_t result;
 
 
-    result = read(sockfd, response + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
-
-    /*printf("\tRESPONSE\n%s\n", response);
-    printf("\tREQUEST\n%s\n", request);
-    printf("\trequest_data\n%s\n", request_data);
-    char *data_ok;
-    data_ok = strstr(response, request_data);
-    if (data_ok != NULL) {
-        printf ("\tdata_ok:\n%s\n", data_ok);
-    }*/
+    result = read(sockfd, response_buf + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
 
     /*printf("%d | %d | %s\n", (int)result, errno, strerror(errno));
     printf("%d | %d | %d | %d | %d | %d | %d | %d \n",
@@ -276,8 +407,8 @@ int8_t read_socket(void) {
 
     /* Error is often reported on subsequent reads in non blocking mode */
     if (result == -1) {
-        printf("\tRESPONSE RECEIVED: \n%s\n", response);
-        fifo_increment_read_idx(&fifo);
+        printf("\tRESPONSE RECEIVED: \n%s\n", response_buf);
+        fifo_increment_read_idx(&requests_fifo);
         socket_state = SOCKET_READ_FINISHED;
         return 1;
     }
@@ -290,14 +421,14 @@ int8_t read_socket(void) {
     }
 
     //request_ok = strstr(response, "202");
-    request_ok = strstr(response, request_data);
+    request_ok = strstr(response_buf, request_data_buf);
     if (request_ok != NULL){
         #if(DEBUG_REQUESTS==1)
-        printf("\tRESPONSE RECEIVED: \n%s\n", response);
+        printf("\tRESPONSE RECEIVED: \n%s\n", response_buf);
         #endif
 
-        fifo_increment_read_idx(&fifo);
-        _clear_response_memory();
+        fifo_increment_read_idx(&requests_fifo);
+        _clear_requests_buffers();
 
         bytes_read = 0;
         socket_state = SOCKET_READ_FINISHED;
@@ -309,15 +440,21 @@ int8_t read_socket(void) {
 
 
 int8_t close_socket(void) {
-    close(sockfd);
+    if (close(sockfd) != 0) {
+		printf("***** ERROR *****\n");
+		//_report_socket_errno();
+    	return -1;
+    }
     socket_state = SOCKET_CLOSED;
     return 0;
 }
 
 
 
-int8_t _clear_response_memory(void) {
-    memset(response, 0, RESPONSE_BUF_SIZE);
+int8_t _clear_requests_buffers(void) {
+    memset(request_buf, 0, REQUEST_BUF_SIZE);
+    memset(request_data_buf, 0, REQUEST_FIFO_STR_SIZE);
+    memset(response_buf, 0, RESPONSE_BUF_SIZE);
     return 0;
 }
 
