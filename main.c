@@ -74,6 +74,7 @@ int main () {
     buffer_task_init(fifo_buffers);
     printf("Address: %p\n", (void *)fifo_buffers[0]);
 
+
     //char data[512];
     while (1) {
         system_idle = 0;

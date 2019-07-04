@@ -16,6 +16,17 @@
 #define REQUESTS_FIFO_BUF_SIZE              (4096)
 #define REQUESTS_FIFO_STR_SIZE              (FIFO_STRING_SIZE)
 
+#define REQUEST_FMT                        \
+    "POST /latest HTTP/1.1\r\n" \
+    "Host: %s\r\n" \
+    "Content-Type: application/json; charset=utf-8\r\n" \
+    "Content-Length: %lu\r\n\r\n" \
+    "%s\r\n\r\n"
+    /*"POST /latest HTTP/1.1\r\n"
+    "Host: %s\r\n"
+    "Content-Type: application/json; charset=utf-8\r\n"
+    "Content-Length: %lu\r\n\r\n"
+    "%s\r\n\r\n"*/
 
 
 // -- debug
@@ -29,8 +40,9 @@
 #define SOCKET_CREATED 1
 #define SOCKET_CONNECTED 2
 #define SOCKET_WRITE_FINISHED 3
-#define SOCKET_READ_FINISHED 4
-#define SOCKET_CLOSE_PENDING 4
+#define SOCKET_READ_RESPONSE 4
+#define SOCKET_READ_FINISHED 5
+#define SOCKET_CLOSE_PENDING 6
 
 // -- request buffer (actual size is number of entries + 1)
 // -- 4096 R, 1 R = 1/4 kB -> 68 h of measurements, 1Mb total space
@@ -38,12 +50,16 @@
 #define REQUEST_FIFO_STR_SIZE 256	//size of string to be kept in fifo
 
 // -- socket timing and time intervals
-#define MAX_SOCKET_TIME 15    // -- max seconds in individual socket state
-#define SOCKET_READ_WRITE_INTERVAL 10  // -- seconds between writing and reading
+//#define MAX_SOCKET_TIME 15    // -- max seconds in individual socket state
+//#define SOCKET_READ_WRITE_INTERVAL 10  // -- seconds between writing and reading
+
+#define SOCKET_MAX_ALLOWED_STATE_TIME_S		15
 
 // -- requset, response and other array lengths
-#define REQUEST_SIZE 1024
-#define RESPONSE_SIZE 1024
+#define REQUEST_BUF_SIZE 	1024
+#define RESPONSE_BUF_SIZE 	1024
+//#define REQUEST_SIZE 		REQUEST_BUF_SIZE
+//#define RESPONSE_SIZE 		RESPONSE_BUF_SIZE
 
 
 
@@ -79,78 +95,8 @@ int8_t requests_task_init_socket (char *_host, int16_t portno);
 
 int8_t requests_task_run (void);
 
+int8_t new_re (void);
 
-/* int32_t setup_socket (void)
- *  validate host address, set up server structure
- *  returns:
- *   1 - setup successful
- *   0 - error setting up
- */
-int8_t setup_socket(void);
 
-/* int32_t create_socket(void)
- *  select socket protocol and stream, create socket
- *  reset socket state elapsed time timer
- *  returns:
- *   1 - successfully connected
- *   0 - error connecting
- */
-int32_t create_socket(void);
 
-/* void connect_socket(void)
- *  connect socket
- *  reset socket state elapsed time timer
- *  exit if maximum socket state elapsed time is reached (close socket)
- */
-void connect_socket(void);
-
-/* void write_socket(void)
- *  write request to socket
- *  enable reentry, if writing process gets interrupted
- *  stop, when everything is written using single function call, or
- *   nothing new was written to the socket (no data left to write)
- *  reset socket state elapsed time timer
- *  exit if maximum socket state elapsed time is reached (close socket)
- */
-void write_socket(void);
-
-/* void read_socket(void)
- *  read response from socket
- *  minimum time must pass between writing and reading, to accomodate for
- *   slower connections/servers and prevent non-deterministic behaviour
- *  enable reentry, if reading process gets interrupted
- *  stop, when everything is received using single function call, or
- *   nothing new was received on the socket (no data left to read)
- *  reset socket state elapsed time timer
- *  exit if maximum socket state elapsed time is reached (close socket)
- */
-int8_t read_socket(void);
-
-/* void close_socket(void)
- *  close socket
- */
-void close_socket(void);
-
-/* int setup_request_buffer(void)
- *  set up request data buffer (only for data, not full request!)
- *  returns:
- *   1 - buffer setup successful
- *   0 - error
- */
-int32_t setup_request_buffer(void);
-
-/* void dummy_request(void)
- *  Set string for validating responses - in this case the device hash name.
- *  Both arrays have the same length, so null termination is not an issue.
- *   p1: Desired validation string.
- */
-void set_write_validation (char *_tmp_validation);
-
-/* void dummy_request(void)
- *  generate dummy request data -> fill buffer
- *  ThingSpeak channel located at: https://thingspeak.com/channels/488607
- *  find fresh IP through the terminal: "nslookup api.thingspeak.com"
- */
-void dummy_request(void);
-
-#endif //_REQUESTS_H_
+#endif

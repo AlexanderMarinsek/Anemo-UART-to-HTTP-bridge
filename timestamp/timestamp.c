@@ -60,15 +60,22 @@ int8_t get_timestamp_json_w_comma (char *_timestamp) {
     return 0;
 }
 
+int8_t get_timestamp_epoch(long int *_time_epoch) {
+	_refresh_timestamp();
+	/* Make sure 'time_t' is equal to 'long int' */
+	*_time_epoch = (long int) time_epoch;
+	return 0;
+}
+
 
 /* FUNCTIONS (LOCAL) **********************************************************/
 
 /*  Get latest timestamp from the system and store in timestamp buffer.
  */
 static int8_t _refresh_timestamp (void) {
-    // -- save current time since Unix Epoch in seconds
+    /* Save current time since Unix Epoch in seconds */
     time_epoch = time(NULL);
-    // -- save current broken down time to time structure
+    /* Save current broken down time to time structure */
     time_human = localtime(&time_epoch);
 
     return 0;

@@ -12,6 +12,8 @@
 
 //#define TIMESTAMP_STRING_SIZE               (64)
 //#define FIFO_STRING_SIZE                    (512)
+
+/* Include space for later added timestamp */
 #define RAW_FIFO_STRING_SIZE                \
     (FIFO_STRING_SIZE - TIMESTAMP_JSON_STRING_SIZE)
 

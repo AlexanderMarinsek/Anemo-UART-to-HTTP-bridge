@@ -31,7 +31,7 @@ char request_fmt[1024] =  "POST /update HTTP/1.1\r\n"
                           "%s\r\n\r\n";*/
 
 // -- test.anemo.si
-/*char request_fmt[REQUEST_BUF_SIZE] =
+/*char request_fmt[REQUEST_SIZE] =
             "POST /latest HTTP/1.1\r\n"
             "Host: %s\r\n"
             //"Content-Type: application/x-www-form-urlencoded\r\n"
@@ -45,7 +45,7 @@ char request_fmt[1024] =  "POST /update HTTP/1.1\r\n"
 // -- LOCAL environment
 //char *host = "127.1.0.0";
 char *host = "10.0.0.4";
-char request_fmt[REQUEST_BUF_SIZE] =
+char request_fmt[REQUEST_SIZE] =
             "POST /anemo-web/anemo_general_api.php HTTP/1.1\r\n"
             "Host: %s\r\n"
             "Content-Type: application/x-www-form-urlencoded\r\n"
@@ -101,8 +101,8 @@ static char timestamp[TIMESTAMP_RAW_STRING_SIZE];
 static char host[HOST_ADDR_BUF_LEN];
 //static int16_t portno;
 
-char  request[REQUEST_BUF_SIZE],
-      response[RESPONSE_BUF_SIZE],
+static char  request[REQUEST_SIZE],
+      response[RESPONSE_SIZE],
       request_data[REQUEST_FIFO_STR_SIZE+1];
 
 
@@ -172,7 +172,7 @@ int8_t requests_task_run(void) {
         // -- check for pending request in buffer and load it
         if (str_fifo_read(&fifo, request_data) == 0) {
             if (_create_socket() == 0) {
-                sprintf(request, REQUEST_FMT, host, strlen(request_data), request_data);
+                sprintf(request, REQUESTS_FMT, host, strlen(request_data), request_data);
                 printf("%lu, %s\n", strlen(request), request);
             }
             return 1;
@@ -304,7 +304,7 @@ int8_t connect_socket(void){
     clock_gettime(CLOCK_MONOTONIC, &socket_state_end);
     socket_elapsed_time = socket_state_end.tv_sec - socket_state_start.tv_sec;
     // -- max allowed time in socket state has passed
-    /*if (socket_elapsed_time >= MAX_SOCKET_TIME) {
+    if (socket_elapsed_time >= MAX_SOCKET_TIME) {
         // -- only show error the first time it occured in a given interval
         if (socket_error_count == 0) {
             get_timestamp_raw(timestamp);
@@ -313,7 +313,7 @@ int8_t connect_socket(void){
         }
         socket_error_count++;
         socket_state = SOCKET_CLOSE_PENDING;
-    }*/
+    }
 
   return 0;
 }
@@ -359,7 +359,7 @@ int8_t write_socket(void) {
     clock_gettime(CLOCK_MONOTONIC, &socket_state_end);
     socket_elapsed_time = socket_state_end.tv_sec - socket_state_start.tv_sec;
     // -- max allowed time in socket state has passed
-    /*if (socket_elapsed_time >= MAX_SOCKET_TIME) {
+    if (socket_elapsed_time >= MAX_SOCKET_TIME) {
         // -- only sho error the first time it occured in a given interval
         if (socket_error_count == 0) {
             get_timestamp_raw(timestamp);
@@ -368,7 +368,7 @@ int8_t write_socket(void) {
             socket_error_count++;
         }
         socket_state = SOCKET_CLOSE_PENDING;
-    }*/
+    }
     return 0;
 }
 
@@ -393,7 +393,7 @@ int8_t read_socket(void) {
     size_t result;
 
 
-    result = read(sockfd, response + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
+    result = read(sockfd, response + bytes_read, RESPONSE_SIZE - bytes_read);
 
     /*printf("\tRESPONSE\n%s\n", response);
     printf("\tREQUEST\n%s\n", request);
@@ -418,7 +418,7 @@ int8_t read_socket(void) {
 
     bytes_read+=result;
 
-    if (RESPONSE_BUF_SIZE == bytes_read) {
+    if (RESPONSE_SIZE == bytes_read) {
         printf("Response buffer too small\n");
         return -1;
     }
@@ -481,7 +481,7 @@ int8_t close_socket(void) {
 
 
 int8_t _clear_response_memory(void) {
-    memset(response, 0, RESPONSE_BUF_SIZE);
+    memset(response, 0, RESPONSE_SIZE);
     return 0;
 }
 

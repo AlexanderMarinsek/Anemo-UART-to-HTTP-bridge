@@ -25,5 +25,7 @@ int8_t get_timestamp_raw (char *_timestamp);
  */
 int8_t get_timestamp_json_w_comma (char *_timestamp);
 
+int8_t get_timestamp_epoch(long int *_time_epoch);
+
 
 #endif
