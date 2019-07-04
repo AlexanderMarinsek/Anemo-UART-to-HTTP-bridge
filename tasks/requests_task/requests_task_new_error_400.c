@@ -184,11 +184,9 @@ int8_t requests_task_run(void) {
     case SOCKET_CLOSED:
         /* Check for new request data in buffer */
         if (str_fifo_read(&requests_fifo, request_data_buf) == 0) {
-            printf("A\n");
             _clear_requests_buffers();
             str_fifo_read(&requests_fifo, request_data_buf);
             if (_create_socket() == 0) {
-                printf("B\n");
                 socket_state = SOCKET_CREATED;
                 _copy_data_to_request();
                 _reset_socket_timer();
@@ -299,8 +297,6 @@ int8_t _create_socket(void) {
  * 	Exit if maximum socket state elapsed time is reached (close socket)
  */
 int8_t connect_socket(void){
-
-	//connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
 
     /* Connect the socket to the previously defined address */
 	int connected =
