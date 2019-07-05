@@ -1,55 +1,71 @@
+/*
+ *
+ *
+ *
+ *
+ */
+
 
 #include "requests_task.h"
 #include "../../fifo/fifo.h"
 #include "../../timestamp/timestamp.h"
 
-#include <stdio.h> /* printf, sprintf */
-#include <stdlib.h> /* exit */
-#include <unistd.h> /* read, write, close */
-#include <string.h> /* memcpy, memset */
-#include <sys/socket.h> /* socket, connect */
-#include <netinet/in.h> /* struct sockaddr_in, struct sockaddr */
-#include <netdb.h> /* struct hostent, gethostbyname */
-#include <time.h>
-
-#include <fcntl.h>
-
-#include <errno.h>
-
-
-// -- GLOBALS ------------------------------------------------------------------
-
-int32_t socket_state;
+#include <stdio.h> 			/* printf, sprintf */
+#include <stdint.h> 		/* data types */
+#include <stdlib.h> 		/* size_t */
+#include <sys/types.h>		/* ssize_t */
+#include <unistd.h> 		/* read, write, close */
+#include <string.h> 		/* memcpy, memset */
+#include <sys/socket.h> 	/* socket, connect */
+#include <netinet/in.h> 	/* struct sockaddr_in, struct sockaddr */
+#include <netdb.h> 			/* struct hostent, gethostbyname */
+#include <fcntl.h>			/* File (socket) control - used for setting async */
+#include <errno.h>			/* Socket error reporting */
 
 
+/* LOCALS *********************************************************************/
 
-// -- LOCALS -------------------------------------------------------------------
+/* Current socket state */
+static int8_t socket_state;
 
-
+/* Socket file descriptor */
 static int32_t sockfd;
+/* Struct with addres and port */
 static struct sockaddr_in serv_addr;
 
+/* Hostname string  */
+static char host[HOST_ADDR_BUF_SIZE];
 
+/* Request including headers, body ... */
+static char request_buf[REQUEST_BUF_SIZE];
+/* Response including headers, body ... */
+static char response_buf[RESPONSE_BUF_SIZE];
+
+
+/* GLOBALS ********************************************************************/
+
+/* Bears only the JSON data (request body) */
+char request_data_buf[REQUEST_FIFO_STR_SIZE];
 
 /* Fifo for data storage */
-static str_fifo_t requests_fifo = {
+str_fifo_t requests_fifo = {
 	0,
 	0,
-	REQUESTS_FIFO_BUF_SIZE,
-	REQUESTS_FIFO_STR_SIZE,
+	REQUEST_FIFO_BUF_SIZE,
+	REQUEST_FIFO_STR_SIZE,
 	NULL
 };
 
+/* Gets written externally. Static to avoid linkage conflicts. */
 static char timestamp[TIMESTAMP_RAW_STRING_SIZE];
 
-//static request_link_t request_link;
+/* Used to measure socket time in single state */
+long int socket_timer_start = 0;
 
-static char host[HOST_ADDR_BUF_LEN];
-//static int16_t portno;
 
-char  request_buf[REQUEST_BUF_SIZE],
-      response_buf[RESPONSE_BUF_SIZE],
-      request_data_buf[REQUEST_FIFO_STR_SIZE+1];
+/* PROTOTYPES *****************************************************************/
+
+int8_t (*_get_socket_state_funciton(void))(void) ;
 
 int8_t _idle_socket(void);
 int8_t _create_socket(void);
@@ -62,48 +78,52 @@ int8_t _close_socket(void);
 int8_t _clear_requests_buffers(void);
 
 int8_t _check_fifo (void);
+
 void _report_socket_errno(void);
 
-// -- FUNS ---------------------------------------------------------------------
+int8_t _has_socket_timer_ended(void);
+void _reset_socket_timer(void);
 
 
-/*  Point outer pointer to local fifo struct and init storage for fifo
+/* FUNCTIONS ******************************************************************/
+
+/*  Point outer pointer to local fifo struct and init storage for fifo.
  */
 int8_t requests_task_init_fifo (str_fifo_t **_fifo) {
     /* Set outer pointer to point to fifo local struct */
     *_fifo = &requests_fifo;
     /* Set up memory for fifo struct and return success/error */
     return setup_str_fifo(
-        &requests_fifo, REQUESTS_FIFO_BUF_SIZE, REQUESTS_FIFO_STR_SIZE);
+        &requests_fifo, REQUEST_FIFO_BUF_SIZE, REQUEST_FIFO_STR_SIZE);
 }
 
-
+/*  Init socket using host address and port.s
+ */
 int8_t requests_task_init_socket(char *_host, int16_t portno) {
-    /* Check length */
-    if (strlen(_host) > HOST_ADDR_BUF_LEN-1) {
+
+    /* Check hostname length */
+    if (strlen(_host) > HOST_ADDR_BUF_SIZE-1) {
+    	/* Refresh local timestamp variable and report error */
+		get_timestamp_raw(timestamp);
+		printf("SOCKET FATAL: HOST ADDRESS TOO LONG | %s\n", timestamp);
         return -1;
     }
-	/* Copy to local string */
+
+	/* Copy hostname to local string */
     memcpy(host, _host, strlen(_host)+1);
-    /* Save port number */
-    //portno = _portno;
 
-
+	/* Server data */
     struct hostent *server;
-    // -- lookup host
+    /* Get server data by domain name, or IPv4 */
     server = gethostbyname(host);
-    if (server != NULL) {
-    socket_state = SOCKET_STATE_IDLE;
-    #if(DEBUG_REQUESTS==1)
-    printf("SOCKET CREATED\n");
-    #endif
-    }
-    else {
-    socket_state = SOCKET_STATE_UNKNOWN_HOST;
-    get_timestamp_raw(timestamp);
-    printf("SOCKET: UNKNOWN HOST | %s\n", timestamp);
-    return -1;
-    }
+
+	if (server == NULL) {
+		socket_state = SOCKET_STATE_UNKNOWN_HOST;
+    	/* Refresh local timestamp variable and report error */
+		get_timestamp_raw(timestamp);
+		printf("SOCKET FATAL: UNKNOWN HOST | %s\n", timestamp);
+		return -1;
+	}
 
     // -- initialize server
     memset(&serv_addr,0,sizeof(serv_addr));
@@ -111,93 +131,98 @@ int8_t requests_task_init_socket(char *_host, int16_t portno) {
     serv_addr.sin_port = htons(portno);
     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
 
-    _clear_requests_buffers();
+    /* Set socket state variable */
+	socket_state = SOCKET_STATE_IDLE;
+
+#if(DEBUG_REQUESTS==1)
+	printf("SOCKET INITIATED\n");
+#endif
 
     return 0;
 }
 
-
+/*
+ *
+ *
+ */
 int8_t requests_task_run(void) {
-	int8_t status = 1;
+	/* Declare function pointer, that is: int8_t myFun (void) {...} */
     int8_t (*state_fun_ptr) (void);
+    /* Get pointer with regard to current socket state, accepts no arguments */
+    state_fun_ptr = _get_socket_state_funciton();
 
-    printf("State: %d\n", socket_state);
+    /* Call socket state function and save status output */
+    int8_t status = state_fun_ptr();
 
-    switch (socket_state) {
-    // -- create
-    case SOCKET_STATE_IDLE:
-    	//status = _idle_socket();
-    	state_fun_ptr = &_idle_socket;
-        break;
-    case SOCKET_STATE_CREATE:
-    	//status = _create_socket();
-    	state_fun_ptr = &_create_socket;
-    	break;
-	// -- connect
-	case SOCKET_STATE_CONNECT:
-		//status = _connect_socket();
-    	state_fun_ptr = &_connect_socket;
-		break;
-	// -- connect
-	case SOCKET_STATE_ADD_DATA:
-		//status = _add_request_data();
-    	state_fun_ptr = &_add_request_data;
-		break;
-    // -- write
-    case SOCKET_STATE_WRITE:
-    	//status = _write_socket();
-    	state_fun_ptr = &_write_socket;
-        break;
-	/* Read from socket */
-    case SOCKET_STATE_READ:
-    	//status = _read_socket ();
-    	state_fun_ptr = &_read_socket;
-        break;
-    // -- read
-    case SOCKET_STATE_EVAL_RESPONSE:
-    	//status = _evaluate_socket();
-    	state_fun_ptr = &_evaluate_socket;
-        break;
-    // -- close
-    case SOCKET_STATE_CLOSE:
-    	//status = _close_socket();
-    	state_fun_ptr = &_close_socket;
-        break;
-    default:
-    	//status = _close_socket();
-    	state_fun_ptr = &_close_socket;
-        // -- do nothing
-        break;
-    }
+    /* 	CHECK COUNTER
+     */
 
-    status = state_fun_ptr();
-
+    /* Fatal error, quit execution */
     if (status == -1) {
     	return SOCKET_STATUS_ERROR;
     }
+    /* State finished, switching to new one */
     if (status == 0) {
+    	// Reset counter
     	return SOCKET_STATUS_BUSY;
     }
+    /* State busy */
     if (status == 1) {
     	return SOCKET_STATUS_BUSY;
     }
+    /* Idle operation, can go to sleep */
     if (status == 2) {
     	return SOCKET_STATUS_IDLE;
     }
+    /* Unknow status */
     else {
+    	printf("Unknown socket status\n");
     	return SOCKET_STATUS_ERROR;
     }
 }
 
 
-int8_t _check_fifo (void) {
+/* 	Get socket state function pointer with regard to current socket state.
+ *  Second '(void)' means it takes no arguments.
+ *
+ *	return:
+ *		function pointer of type:	int8_t myFun (void) {...}
+ */
+int8_t (*_get_socket_state_funciton(void))(void) {
+    int8_t (*state_fun_ptr) (void);
+    printf("State: %d\n", socket_state);
 
-	/* Check for pending data */
-    if (str_fifo_read(&requests_fifo, request_data_buf) == 0) {
-        return 0;
+    switch (socket_state) {
+    case SOCKET_STATE_IDLE:
+    	state_fun_ptr = &_idle_socket;
+        break;
+    case SOCKET_STATE_CREATE:
+    	state_fun_ptr = &_create_socket;
+    	break;
+	case SOCKET_STATE_CONNECT:
+    	state_fun_ptr = &_connect_socket;
+		break;
+	case SOCKET_STATE_ADD_DATA:
+    	state_fun_ptr = &_add_request_data;
+		break;
+    case SOCKET_STATE_WRITE:
+    	state_fun_ptr = &_write_socket;
+        break;
+    case SOCKET_STATE_READ:
+    	state_fun_ptr = &_read_socket;
+        break;
+    case SOCKET_STATE_EVAL_RESPONSE:
+    	state_fun_ptr = &_evaluate_socket;
+        break;
+    case SOCKET_STATE_CLOSE:
+    	state_fun_ptr = &_close_socket;
+        break;
+    default:
+    	state_fun_ptr = &_close_socket;
+        break;
     }
 
-	return 1;
+    return state_fun_ptr;
 }
 
 
@@ -206,7 +231,7 @@ int8_t _check_fifo (void) {
  *  Next state:
  *  	SOCKET_STATE_CREATE
  *
- *  returns:
+ *  return:
  *  	-1: error
  *		 0: new data available
  *		 2: idle
@@ -250,18 +275,16 @@ int8_t _create_socket(void) {
      * Normal: EINPROGRESS is thrown in non blocking operations
      */
     if (sockfd == -1 && errno != EINPROGRESS) {
-		printf("***** ERROR *****\n");
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
-        return -1;
+        return 0;
     }
 
     /* Catch refused error, because socket() returns positive on refused. */
     if (errno == ECONNREFUSED) {
-		printf("***** ERROR *****\n");
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
-        return -1;
+        return 0;
     }
 
     /* Set to non blocking */
@@ -301,10 +324,9 @@ int8_t _connect_socket(void){
 
     /* Catch error, which is not EINPROGRESS. */
     if (sockfd == -1 && errno != EINPROGRESS) {
-		printf("***** ERROR *****\n");
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
-        return -1;
+        return 0;
     }
 
     /* Set socket state variable */
@@ -377,10 +399,9 @@ int8_t _write_socket(void) {
 
 	/* Normal: EINPROGRESS is thrown in non blocking operations */
 	if (result == -1 && errno != EINPROGRESS) {
-		printf("***** ERROR *****\n");
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
-		return -1;
+		return 0;
 	}
 
     /* Increment bytes_read ('request_buf' idx pointer) */
@@ -435,10 +456,9 @@ int8_t _read_socket(void) {
     /* Check for socket error */
     //if (errno == ENOTCONN || errno == EBADF)
     if (result == 0) {
-		printf("***** ERROR *****\n");
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
-        return -1;
+        return 0;
     }
 
     /* If read successfull, increment bytes_read ('response_buf' idx pointer) */
@@ -448,9 +468,10 @@ int8_t _read_socket(void) {
 
     /* Reached end of buffer */
     if (bytes_read == RESPONSE_BUF_SIZE-1) {
-    	/* Serious error, hard to catch */
-	    printf("Response buffer too small\n");
-        socket_state = SOCKET_STATE_CLOSE;
+    	/* Refresh local timestamp variable and report error */
+		get_timestamp_raw(timestamp);
+		printf("SOCKET FATAL: RESPONSE BUFFER TOO LONG | %s\n", timestamp);
+        //socket_state = SOCKET_STATE_CLOSE;
 	    return -1;
 	}
 
@@ -507,8 +528,11 @@ int8_t _evaluate_socket(void) {
 #endif
 		/* Increment read pointer, means next data row can be sent */
 		if (fifo_increment_read_idx(&requests_fifo) != 0) {
-			/* Hard to catch, is error possible (?) */
-			printf("Tried to increment empty fifo\n");
+			/* Is this error possible (?) */
+	    	/* Refresh local timestamp variable and report error */
+			get_timestamp_raw(timestamp);
+			printf("SOCKET FATAL: INCREMENT EMPTY FIFO | %s\n", timestamp);
+			return 0;
 		}
 		if (_check_fifo() == 0) {
 	        socket_state = SOCKET_STATE_ADD_DATA;
@@ -533,12 +557,39 @@ int8_t _evaluate_socket(void) {
  */
 int8_t _close_socket(void) {
     if (close(sockfd) != 0) {
-		printf("***** ERROR *****\n");
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
-        return -1;
+        return 0;
     }
     socket_state = SOCKET_STATE_IDLE;
+    return 0;
+}
+
+
+/*	Check if fifo has any pending data.
+ *
+ *  return:
+ *  	-1: error
+ *		 0: new data available
+ *		 1: nothing new
+ */
+int8_t _check_fifo (void) {
+
+	/* Check for pending data */
+    if (str_fifo_read(&requests_fifo, request_data_buf) == 0) {
+        return 0;
+    }
+
+	return 1;
+}
+
+
+/* 	Write zeroes to request, response and request data buffers.
+ */
+int8_t _clear_requests_buffers(void) {
+    memset(request_buf, 0, REQUEST_BUF_SIZE);
+    memset(request_data_buf, 0, REQUEST_FIFO_STR_SIZE);
+    memset(response_buf, 0, RESPONSE_BUF_SIZE);
     return 0;
 }
 
@@ -547,7 +598,7 @@ int8_t _close_socket(void) {
  */
 void _report_socket_errno(void) {
     get_timestamp_raw(timestamp);
-    printf("Socket error: \n"
+    printf("Socket internal error: \n"
 		"\t State: %d \n"
 		"\t Error: (%d) %s \n"
 		"\t Time: %s\n",
@@ -556,10 +607,29 @@ void _report_socket_errno(void) {
 }
 
 
-int8_t _clear_requests_buffers(void) {
-    memset(request_buf, 0, REQUEST_BUF_SIZE);
-    memset(request_data_buf, 0, REQUEST_FIFO_STR_SIZE);
-    memset(response_buf, 0, RESPONSE_BUF_SIZE);
-    return 0;
+/*	Check if max allowed time in socket state has ended.
+ *
+ * 	return:
+ * 		0: max allowed time reached
+ * 		1: timer still running
+ */
+int8_t _has_socket_timer_ended(void) {
+	long int timer_now;
+	get_timestamp_epoch(&timer_now);
+	if (timer_now - socket_timer_start > SOCKET_MAX_ALLOWED_STATE_TIME_S) {
+        get_timestamp_raw(timestamp);
+		printf("MAX ALLOWED SOCKET TIME REACHED: %d | %s\n",
+				socket_state, timestamp);
+		return 0;
+	}
+	return 1;
+}
+
+
+/*	Reset socket state timer.
+ */
+void _reset_socket_timer(void) {
+	get_timestamp_epoch(&socket_timer_start);
+	return;
 }
 
