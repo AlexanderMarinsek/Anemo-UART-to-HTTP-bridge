@@ -55,10 +55,10 @@ int8_t buffer_task_init (str_fifo_t *_fifo_buffers[3]) {
     int i;
     for (i=0; i<3; i++) {
         fifo_buffers[i] = _fifo_buffers[i];
-        printf("-Address: %p, %d\n", (void *)&_fifo_buffers[i], i);
+        /*printf("-Address: %p, %d\n", (void *)&_fifo_buffers[i], i);
         printf("-Address: %p, %d\n", (void *)_fifo_buffers[i], i);
         printf("-Address: %p, %d\n", (void *)&fifo_buffers[i], i);
-        printf("-Address: %p, %d\n", (void *)fifo_buffers[i], i);
+        printf("-Address: %p, %d\n", (void *)fifo_buffers[i], i);*/
     }
 
     json_incoming.num_of_nested_obj = 0;
@@ -77,7 +77,7 @@ int8_t buffer_task_run (void) {
     if (str_fifo_read_auto_inc(fifo_buffers[0], tmp_serial_buffer) == 0) {
         /* Check for JSON format */
         if (_get_json_from_raw() == 0) {
-            printf("%s\n", json_incoming.str_buffer.buffer);
+            //printf("%s\n", json_incoming.str_buffer.buffer);
 
             /* Add system timestamp to JSON string */
             if (_add_timestamp_to_json() != 0) {

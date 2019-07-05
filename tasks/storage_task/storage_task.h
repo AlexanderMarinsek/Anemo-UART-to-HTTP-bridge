@@ -1,6 +1,14 @@
 #ifndef STORAGE_TASK
 #define STORAGE_TASK
 
+/*
+ *  Useful links:
+ *   POSIX UART: https://www.cmrr.umn.edu/~strupp/serial.html
+ *   File/port open: http://man7.org/linux/man-pages/man2/open.2.html
+ *
+ *
+ */
+
 #include "../../fifo/fifo.h"
 //#include "../../serial/serial.h"
 

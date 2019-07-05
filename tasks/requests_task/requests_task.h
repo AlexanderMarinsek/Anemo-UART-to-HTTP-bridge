@@ -2,9 +2,13 @@
 #define REQUESTS_TASK_H
 
 /*
+ *  Task for issuing HTTP requests. Non blocking, asynchronous pooling based.
+ *  All states are handled internal, as is fifo and other buffer allocation.
  *
+ *  Includes error reporting (printf - error code and verbose).
  *
- *
+ *	Useful links:
+ *		http://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
  */
 
 
@@ -23,10 +27,8 @@
 #include <errno.h>			/* Socket error reporting */
 
 
-
-// -- debug
 #ifndef DEBUG_REQUESTS
-#define DEBUG_REQUESTS 1
+#define DEBUG_REQUESTS 0
 #endif
 
 /* Socket state codes */
@@ -94,6 +96,13 @@ int8_t requests_task_init_fifo (str_fifo_t **_fifo);
  */
 int8_t requests_task_init_socket (char *_host, int16_t portno);
 
+/*  Check for data, create and enable socket, write, read and evaluate.
+ *
+ *  return:
+ *  	-1: fatal error
+ *  	 0: idle
+ *  	 1: busy
+ */
 int8_t requests_task_run (void);
 
 

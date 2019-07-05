@@ -44,7 +44,9 @@ int8_t str_fifo_write(str_fifo_t *fifo, char *data){
 	uint32_t i=0;
 	uint32_t tmp_write_idx = (fifo->write_idx+1)%fifo->buf_size;
 
-    // -- allow circular overwrite
+    /* Allow circular overwrite.
+     * Always keep read_idx at leats one in front write_ix.
+     */
 	if(tmp_write_idx == fifo->read_idx){
         fifo->read_idx = (fifo->read_idx+1)%fifo->buf_size;
 		printf("Fifo: circural overwrite\n");

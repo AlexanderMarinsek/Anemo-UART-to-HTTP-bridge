@@ -51,15 +51,8 @@ static void signal_handler_IO (int status);
 /*  Init raw serial data fifo.
  */
 int8_t serial_init_fifo(str_fifo_t **_fifo){
-    printf("Address: %p\n", (void *)_fifo);
-    printf("Address: %p\n", (void *)*_fifo);
-    printf("Address: %p\n", &fifo);
     *_fifo = &fifo;
     setup_str_fifo(&fifo, SERIAL_FIFO_BUFFER_SIZE, RAW_FIFO_STRING_SIZE);
-    //printf("%d, %d\n", _fifo->write_idx, _fifo->read_idx);
-    printf("Address: %p\n", (void *)_fifo);
-    printf("Address: %p\n", (void *)*_fifo);
-    printf("Address: %p\n", &fifo);
     return 0;
 }
 
@@ -74,8 +67,29 @@ int8_t serial_init_port (char *_portname) {
     return error_control;
 }
 
+/*  Open serial port.
+ */
+int8_t serial_open_port (void) {
+	int8_t error_control = 0;
+	error_control += _open_port();
+	error_control += _set_up_port();
+    return error_control;
+}
 
-/* FUNCTIONS (LOCAL) *********************************************************/
+
+/* SIGNAL HANDLER *************************************************************/
+void signal_handler_IO (int status)
+{
+    /* Clear temporary string buffer */
+    memset(rx_buffer, 0, RAW_FIFO_STRING_SIZE);
+    /* Read incoming to temporary string buffer */
+	rx_length = read(fd, (void*)rx_buffer, RAW_FIFO_STRING_SIZE-1);
+    /* Write to buffer */
+    str_fifo_write(&fifo, rx_buffer);
+}
+
+
+/* FUNCTIONS (LOCAL) **********************************************************/
 
 /* Save local copy of portname */
 static int8_t _set_portname (char *_portname) {
@@ -171,17 +185,4 @@ int8_t _add_signal_handler_IO (void) {
     int status = sigaction(SIGIO, &saio, NULL);        /* returns 0 / -1 */
 
     return status;
-}
-
-
-/*  Signal handler.
- */
-void signal_handler_IO (int status)
-{
-    /* Clear temporary string buffer */
-    memset(rx_buffer, 0, RAW_FIFO_STRING_SIZE);
-    /* Read incoming to temporary string buffer */
-	rx_length = read(fd, (void*)rx_buffer, RAW_FIFO_STRING_SIZE-1);
-    /* Write to buffer */
-    str_fifo_write(&fifo, rx_buffer);
 }

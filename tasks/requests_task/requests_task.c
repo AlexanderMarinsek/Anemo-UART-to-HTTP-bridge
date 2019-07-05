@@ -1,11 +1,3 @@
-/*
- *
- *
- *
- *
- */
-
-
 #include "requests_task.h"
 #include "../../fifo/fifo.h"
 #include "../../timestamp/timestamp.h"
@@ -77,7 +69,7 @@ int8_t _evaluate_socket(void);
 int8_t _close_socket(void);
 int8_t _clear_requests_buffers(void);
 
-int8_t _check_fifo (void);
+int8_t _check_fifo_for_new_data (void);
 
 void _report_socket_errno(void);
 
@@ -93,9 +85,16 @@ int8_t requests_task_init_fifo (str_fifo_t **_fifo) {
     /* Set outer pointer to point to fifo local struct */
     *_fifo = &requests_fifo;
     /* Set up memory for fifo struct and return success/error */
-    return setup_str_fifo(
+    int8_t fifo_status = setup_str_fifo(
         &requests_fifo, REQUEST_FIFO_BUF_SIZE, REQUEST_FIFO_STR_SIZE);
+
+#if(DEBUG_REQUESTS==1)
+	printf("*\tREQUEST FIFO INITIATED\n");
+#endif
+
+    return fifo_status;
 }
+
 
 /*  Init socket using host address and port.s
  */
@@ -125,25 +124,26 @@ int8_t requests_task_init_socket(char *_host, int16_t portno) {
 		return -1;
 	}
 
-    // -- initialize server
+    /* Initialize server */
     memset(&serv_addr,0,sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(portno);
     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
 
+    _reset_socket_timer();
+
     /* Set socket state variable */
 	socket_state = SOCKET_STATE_IDLE;
 
 #if(DEBUG_REQUESTS==1)
-	printf("SOCKET INITIATED\n");
+	printf("*\tSOCKET INITIATED\n");
 #endif
 
     return 0;
 }
 
-/*
- *
- *
+
+/*  Check for data, create and enable socket, write, read and evaluate.
  */
 int8_t requests_task_run(void) {
 	/* Declare function pointer, that is: int8_t myFun (void) {...} */
@@ -154,8 +154,13 @@ int8_t requests_task_run(void) {
     /* Call socket state function and save status output */
     int8_t status = state_fun_ptr();
 
-    /* 	CHECK COUNTER
-     */
+    /* Close socket if timer has elepsed */
+    if (_has_socket_timer_ended() == 0) {
+    	printf("SOCKET TIME ELAPSED\n");
+    	_report_socket_errno();
+        socket_state = SOCKET_STATE_CLOSE;
+        return SOCKET_STATUS_BUSY;
+    }
 
     /* Fatal error, quit execution */
     if (status == -1) {
@@ -163,7 +168,7 @@ int8_t requests_task_run(void) {
     }
     /* State finished, switching to new one */
     if (status == 0) {
-    	// Reset counter
+    	_reset_socket_timer();		/* Reset timer on change */
     	return SOCKET_STATUS_BUSY;
     }
     /* State busy */
@@ -172,6 +177,7 @@ int8_t requests_task_run(void) {
     }
     /* Idle operation, can go to sleep */
     if (status == 2) {
+    	_reset_socket_timer();		/* Idle is not time bound */
     	return SOCKET_STATUS_IDLE;
     }
     /* Unknow status */
@@ -190,7 +196,10 @@ int8_t requests_task_run(void) {
  */
 int8_t (*_get_socket_state_funciton(void))(void) {
     int8_t (*state_fun_ptr) (void);
-    printf("State: %d\n", socket_state);
+
+#if(DEBUG_REQUESTS==1)
+    printf("Socket state: %d\n", socket_state);
+#endif
 
     switch (socket_state) {
     case SOCKET_STATE_IDLE:
@@ -237,9 +246,9 @@ int8_t (*_get_socket_state_funciton(void))(void) {
  *		 2: idle
  */
 int8_t _idle_socket(void) {
-	if (_check_fifo() == 0) {
+	if (_check_fifo_for_new_data() == 0) {
 #if(DEBUG_REQUESTS==1)
-		printf("\tSOCKET FIFO DATA DETECTED\n");
+		printf("*\tSOCKET FIFO DATA DETECTED\n");
 #endif
         socket_state = SOCKET_STATE_CREATE;
         return 0;
@@ -267,7 +276,7 @@ int8_t _create_socket(void) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
 #if(DEBUG_REQUESTS==1)
-	printf("sockfd: %d\n", sockfd);
+	printf("socket(): %d\n", sockfd);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
 
@@ -295,7 +304,7 @@ int8_t _create_socket(void) {
     socket_state = SOCKET_STATE_CONNECT;
 
 #if(DEBUG_REQUESTS==1)
-	printf("\tSOCKET CREATED\n");
+	printf("*\tSOCKET CREATED\n");
 #endif
 
     return 0;
@@ -318,12 +327,12 @@ int8_t _connect_socket(void){
 		connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
 
 #if(DEBUG_REQUESTS==1)
-	printf("connected: %d\n", connected);
+	printf("connect(): %d\n", connected);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
 
     /* Catch error, which is not EINPROGRESS. */
-    if (sockfd == -1 && errno != EINPROGRESS) {
+    if (connected == -1 && errno != EINPROGRESS) {
 		_report_socket_errno();
         socket_state = SOCKET_STATE_CLOSE;
         return 0;
@@ -333,7 +342,7 @@ int8_t _connect_socket(void){
 	socket_state = SOCKET_STATE_ADD_DATA;
 
 #if(DEBUG_REQUESTS==1)
-	printf("\tSOCKET CONNECTED\n");
+	printf("*\tSOCKET CONNECTED\n");
 #endif
 
   return 0;
@@ -379,10 +388,9 @@ int8_t _add_request_data(void) {
  *		 1: still writing
  */
 int8_t _write_socket(void) {
-	printf("state 4\n");
-    static size_t bytes_sent = 0;
+    static ssize_t bytes_sent = 0;
     /* Only write the bytes containing data (string) */
-    size_t request_len = strlen(request_buf);
+    ssize_t request_len = strlen(request_buf);
 
     /* Write and get amount of bytes, that were written
      * 	-1: can't write
@@ -393,7 +401,7 @@ int8_t _write_socket(void) {
 		write(sockfd, request_buf + bytes_sent, request_len - bytes_sent);
 
 #if(DEBUG_REQUESTS==1)
-	printf("result: %ld, %ld, %ld\n", result, bytes_sent, request_len);
+	printf("write(): %ld, %ld, %ld\n", result, bytes_sent, request_len);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
 
@@ -410,7 +418,8 @@ int8_t _write_socket(void) {
     /* Finished writing (writen everything, nonthing else left) */
     if (request_len == bytes_sent || result == 0) {
 #if(DEBUG_REQUESTS==1)
-    printf("\tREQUEST WRITTEN: \n%s\n", request_buf);
+    	printf("*\tREQUEST WRITTEN (%lu): \n%s\n",
+			request_len, request_buf);
 #endif
 		/* Reset static vars */
     	bytes_sent = 0;
@@ -449,8 +458,10 @@ int8_t _read_socket(void) {
     		read(sockfd, response_buf + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
 
 #if(DEBUG_REQUESTS==1)
-	printf("result: %ld, %ld, %d\n", result, bytes_read, RESPONSE_BUF_SIZE);
+	printf("read(): %ld, %ld, %d\n", result, bytes_read, RESPONSE_BUF_SIZE);
     printf("errno: %d | %s\n", errno, strerror(errno));
+//	printf("%d | %d | %d | %d | %d | %d | %d | %d \n",
+//		EAGAIN, EWOULDBLOCK, EBADF, EFAULT, EINTR, EINVAL, EIO, EISDIR);
 #endif
 
     /* Check for socket error */
@@ -476,17 +487,15 @@ int8_t _read_socket(void) {
 	}
 
 #if(DEBUG_REQUESTS==1)
-    printf("Results: %ld, %ld, %ld\n", prev_result, result, bytes_read);
-    printf("%ld | %d | %s\n", result, errno, strerror(errno));
-	printf("%d | %d | %d | %d | %d | %d | %d | %d \n",
-		EAGAIN, EWOULDBLOCK, EBADF, EFAULT, EINTR, EINVAL, EIO, EISDIR);
+    printf("Previous, current, total read(): %ld, %ld, %ld\n",
+		prev_result, result, bytes_read);
 #endif
 
 	/* Check for end of response */
     if (prev_result > 0) {		/* Previously read something */
     	if (result == -1) {		/* Nothing new was read */
 #if(DEBUG_REQUESTS==1)
-			printf("\tRESPONSE RECEIVED (%ld):\n%s\n",
+			printf("*\tRESPONSE RECEIVED (%ld):\n%s\n",
 				bytes_read, response_buf);
 #endif
     		/* Reset static vars */
@@ -524,7 +533,7 @@ int8_t _evaluate_socket(void) {
     /* Check, if match in string comparison exists */
 	if (request_ok != NULL){
 #if(DEBUG_REQUESTS==1)
-		printf("\tRESPONSE OK\n");
+		printf("*\tRESPONSE OK\n");
 #endif
 		/* Increment read pointer, means next data row can be sent */
 		if (fifo_increment_read_idx(&requests_fifo) != 0) {
@@ -534,7 +543,7 @@ int8_t _evaluate_socket(void) {
 			printf("SOCKET FATAL: INCREMENT EMPTY FIFO | %s\n", timestamp);
 			return 0;
 		}
-		if (_check_fifo() == 0) {
+		if (_check_fifo_for_new_data() == 0) {
 	        socket_state = SOCKET_STATE_ADD_DATA;
 		} else {
 	        socket_state = SOCKET_STATE_CLOSE;
@@ -554,14 +563,22 @@ int8_t _evaluate_socket(void) {
  * 	return:
  *  	-1: error
  *		 0: success
+ *		 1: retry
  */
 int8_t _close_socket(void) {
     if (close(sockfd) != 0) {
 		_report_socket_errno();
-        socket_state = SOCKET_STATE_CLOSE;
-        return 0;
+        /* Common error when trying to close unopened socket */
+		if (errno == EBADF) {
+			socket_state = SOCKET_STATE_IDLE;
+	        return 0;
+		}
+        return 1;
     }
     socket_state = SOCKET_STATE_IDLE;
+#if(DEBUG_REQUESTS==1)
+		printf("*\tSOCKET CLOSED\n");
+#endif
     return 0;
 }
 
@@ -573,7 +590,7 @@ int8_t _close_socket(void) {
  *		 0: new data available
  *		 1: nothing new
  */
-int8_t _check_fifo (void) {
+int8_t _check_fifo_for_new_data (void) {
 
 	/* Check for pending data */
     if (str_fifo_read(&requests_fifo, request_data_buf) == 0) {
@@ -607,7 +624,7 @@ void _report_socket_errno(void) {
 }
 
 
-/*	Check if max allowed time in socket state has ended.
+/*	Check if max allowed time in socket state has ended and reset timer.
  *
  * 	return:
  * 		0: max allowed time reached
@@ -617,9 +634,11 @@ int8_t _has_socket_timer_ended(void) {
 	long int timer_now;
 	get_timestamp_epoch(&timer_now);
 	if (timer_now - socket_timer_start > SOCKET_MAX_ALLOWED_STATE_TIME_S) {
-        get_timestamp_raw(timestamp);
-		printf("MAX ALLOWED SOCKET TIME REACHED: %d | %s\n",
-				socket_state, timestamp);
+//      get_timestamp_raw(timestamp);
+//		printf("MAX ALLOWED SOCKET TIME REACHED: %d | %s\n",
+//				socket_state, timestamp);
+		/* Reset timer */
+    	_reset_socket_timer();
 		return 0;
 	}
 	return 1;

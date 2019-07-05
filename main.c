@@ -4,8 +4,9 @@
  *   File/port open: http://man7.org/linux/man-pages/man2/open.2.html
  *
  *
- *
  */
+
+
 
 #include "fifo/fifo.h"
 #include "serial/serial.h"
@@ -17,12 +18,22 @@
 #include <unistd.h>     /* Sleep */
 
 
+
 #define MEASUREMENTS_FILENAME               "./measurements/data.json"
 #define SERIAL_PORTNAME                     "/dev/ttyACM0"
 #define SERVER_HOSTNAME                     "127.0.0.1"
 #define SERVER_PORT                         (5761)
 
-#define USLEEP_AMOUNT                       (3*1000*1000)
+#define SHORT_SLEEP_TIME_US					10000		/* 10 ms */
+#define LONG_SLEEP_TIME_US					1000000		/* 1 s */
+
+
+
+/* Pooling based tasks */
+int8_t (*task_ptrs[]) (void) =
+	{&buffer_task_run, &storage_task_run, &requests_task_run};
+/* Get number of tasks */
+int8_t num_of_tasks = (sizeof(task_ptrs) / sizeof(task_ptrs[0]));
 
 
 /* Pointer to three fifo buffers
@@ -32,7 +43,6 @@
  */
 str_fifo_t *fifo_buffers[3];
 
-int8_t system_idle = 0;
 
 
 int main () {
@@ -47,6 +57,12 @@ int main () {
         printf("Error: serial_init_port");
         return -1;
     }
+    /* Open serial port */
+    if (serial_open_port() != 0) {
+        printf("Error: serial_open_port");
+        return -1;
+    }
+
 
     /* Init data storage fifo */
     if (storage_task_init_fifo(&fifo_buffers[1]) != 0) {
@@ -72,37 +88,68 @@ int main () {
 
     /* Last of all! */
     buffer_task_init(fifo_buffers);
-    printf("Address: %p\n", (void *)fifo_buffers[0]);
 
+
+    printf("\n*\tInit successful:\n");
+    printf("Number of tasks: %d\n", num_of_tasks);
+    printf("Sleep ampunt [us]:  %d and %d\n",
+		SHORT_SLEEP_TIME_US, LONG_SLEEP_TIME_US);
+    printf("\n*\tBegin main loop\n\n");
+
+
+    /* Task status returned as each task function's output */
+    int8_t tmp_task_status;
+
+    /* Task status accumulator, keeps track of busy tasks */
     int8_t is_sys_idle;
-    int8_t task_status;
 
-    //char data[512];
+    /* Sleep time on each loop to slow down execution */
+    uint64_t sleep_time_us;
+
+    /* Task pointer index */
+    int task_idx;
+
+
     while (1) {
+    	/* Reset each time before tasks loop */
     	is_sys_idle = 0;
 
-        task_status = buffer_task_run();
-        task_status = storage_task_run();
+    	/* Iterate and run tasks */
+    	for (task_idx=0; task_idx < num_of_tasks; task_idx++) {
 
-        task_status = requests_task_run();
+	        /* Call i-th task using function pointer. */
+			tmp_task_status = task_ptrs[task_idx]();
 
-        if (task_status == -1) {
-        	printf("FATAL ERROR\n");
-        	return -1;
-        }
-        is_sys_idle += task_status;
+			/* Check for fatal error within task. */
+			if (tmp_task_status == -1) {
+				printf("FATAL ERROR\n");
+				return -1;
+			}
 
-        printf("STATUS: %d | %d\n", task_status, is_sys_idle);
+			/* Check for busy tasks, which need to avoid system sleep. */
+			is_sys_idle += tmp_task_status;
+    	}
 
-        if (is_sys_idle == 0) {
-            printf("SI\n");
-            usleep(1000000);
-        }
+		//printf("is_sys_idle: %d \n", is_sys_idle);
 
-        usleep(10000);
-        //printf("%d\n", str_fifo_read_auto_inc(fifo_buffers[1], data));
-        //printf("%d, %d\n", fifo_buffers[1]->write_idx, fifo_buffers[1]->read_idx);
-        //printf ("***%s\n", data);
+		/* If no busy tasks, go to (interruptable) sleep */
+		if (is_sys_idle == 0) {
+			sleep_time_us = LONG_SLEEP_TIME_US;
+		} else {
+			sleep_time_us = SHORT_SLEEP_TIME_US;
+		}
+
+		/* Go to (interruptable) sleep */
+		usleep(sleep_time_us);
+
+
+        /*printf( "***FIFO POINTERS: \n"
+        		"\t%d, %d\n"
+        		"\t%d, %d\n"
+        		"\t%d, %d\n",
+        		fifo_buffers[0]->write_idx, fifo_buffers[0]->read_idx,
+        		fifo_buffers[1]->write_idx, fifo_buffers[1]->read_idx,
+        		fifo_buffers[2]->write_idx, fifo_buffers[2]->read_idx);*/
     }
 
     return 0;
