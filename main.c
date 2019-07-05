@@ -74,19 +74,32 @@ int main () {
     buffer_task_init(fifo_buffers);
     printf("Address: %p\n", (void *)fifo_buffers[0]);
 
+    int8_t is_sys_idle;
+    int8_t task_status;
 
     //char data[512];
     while (1) {
-        system_idle = 0;
-        buffer_task_run();
-        storage_task_run();
-        system_idle += requests_task_run();
+    	is_sys_idle = 0;
 
-        if (system_idle == 0) {
+        task_status = buffer_task_run();
+        task_status = storage_task_run();
+
+        task_status = requests_task_run();
+
+        if (task_status == -1) {
+        	printf("FATAL ERROR\n");
+        	return -1;
+        }
+        is_sys_idle += task_status;
+
+        printf("STATUS: %d | %d\n", task_status, is_sys_idle);
+
+        if (is_sys_idle == 0) {
             printf("SI\n");
             usleep(1000000);
         }
-        usleep(100000);
+
+        usleep(10000);
         //printf("%d\n", str_fifo_read_auto_inc(fifo_buffers[1], data));
         //printf("%d, %d\n", fifo_buffers[1]->write_idx, fifo_buffers[1]->read_idx);
         //printf ("***%s\n", data);

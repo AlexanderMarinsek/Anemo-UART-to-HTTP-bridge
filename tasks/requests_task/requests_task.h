@@ -35,14 +35,23 @@
 #endif
 
 // -- socket states
-#define SOCKET_UNKNOWN_HOST -1
-#define SOCKET_CLOSED 0
-#define SOCKET_CREATED 1
-#define SOCKET_CONNECTED 2
-#define SOCKET_WRITE_FINISHED 3
-#define SOCKET_READ_RESPONSE 4
-#define SOCKET_READ_FINISHED 5
-#define SOCKET_CLOSE_PENDING 6
+#define SOCKET_STATE_UNKNOWN_HOST 		-1
+#define SOCKET_STATE_IDLE				0
+#define SOCKET_STATE_CREATE				1
+#define SOCKET_STATE_CONNECT			2
+#define SOCKET_STATE_ADD_DATA			3
+#define SOCKET_STATE_WRITE				4
+#define SOCKET_STATE_READ				5
+#define SOCKET_STATE_EVAL_RESPONSE		6
+#define SOCKET_STATE_CLOSE				7
+
+
+
+#define SOCKET_STATUS_ERROR			-1
+#define SOCKET_STATUS_IDLE			0
+#define SOCKET_STATUS_BUSY			1
+
+
 
 // -- request buffer (actual size is number of entries + 1)
 // -- 4096 R, 1 R = 1/4 kB -> 68 h of measurements, 1Mb total space
