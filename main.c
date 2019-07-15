@@ -44,8 +44,21 @@ int8_t num_of_tasks = (sizeof(task_ptrs) / sizeof(task_ptrs[0]));
 str_fifo_t *fifo_buffers[3];
 
 
+/*
+ * 	p2: (if give) serial port path name
+ */
+int main (int argc, char* argv[]) {
 
-int main () {
+	char serial_portname [PORTNAME_STRING_LEN] = {0};
+	if (argc == 1) {
+		sprintf(serial_portname, "%s", SERIAL_PORTNAME);
+	} else if (argc == 2) {
+		sprintf(serial_portname, "%s", argv[1]);
+	} else {
+		printf("Incompatible number of arguments (%d)\n", argc);
+		return -1;
+	}
+
 
     /* Init serial fifo */
     if (serial_init_fifo(&fifo_buffers[0]) != 0) {
@@ -53,7 +66,8 @@ int main () {
         return -1;
     }
     /* Init serial port */
-    if (serial_init_port(SERIAL_PORTNAME) != 0) {
+    //if (serial_init_port(SERIAL_PORTNAME) != 0) {
+    if (serial_init_port(serial_portname) != 0) {
         printf("Error: serial_init_port");
         return -1;
     }
