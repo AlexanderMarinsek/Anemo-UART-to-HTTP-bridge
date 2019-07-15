@@ -2290,3 +2290,5 @@
 {"timestamp":"2019-07-15T10:48","hash":"3906273145922897","status":4352,"error":0,"data":{"wind_speed":0,"wind_direction":1575,"wind_gust_speed":0,"wind_gust_peak":0}}
 {"timestamp":"2019-07-15T10:48","hash":"3906273145922897","status":4352,"error":0,"data":{"wind_speed":0,"wind_direction":2025,"wind_gust_speed":0,"wind_gust_peak":0}}
 {"timestamp":"2019-07-15T10:48","hash":"3906273145922897","status":4352,"error":0,"data":{"wind_speed":0,"wind_direction":2025,"wind_gust_speed":0,"wind_gust_peak":0}}
+{"timestamp":"2019-07-15T14:12","hash":"3906273145922897","status":4352,"error":0,"data":{"wind_speed":0,"wind_direction":1125,"wind_gust_speed":0,"wind_gust_peak":0}}
+{"timestamp":"2019-07-15T14:19","hash":"3906273145922897","status":4352,"error":0,"data":{"wind_speed":0,"wind_direction":900,"wind_gust_speed":0,"wind_gust_peak":0}}

@@ -110,6 +110,7 @@ int8_t _set_up_port (void) {
     struct termios options;
     tcgetattr(fd, &options);
 
+    /* CONTROL options */
     /* Set baudrate */
     options.c_cflag = B115200;
     /* Clears the mask for setting the data size */
@@ -127,10 +128,14 @@ int8_t _set_up_port (void) {
     /* Enable receiver */
     options.c_cflag |= CREAD;
 
+	/* INPUT options */
     /* Disable XON/XOFF flow control both i/p and o/p */
     options.c_iflag &= ~(IXON | IXOFF | IXANY);
-    /* Non Cannonical mode */
-    options.c_iflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    /* LINE options */
+    /* Non cannonical, non-echo mode */
+    //options.c_iflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    /* OUTPUT options */
     /* No Output Processing */
     options.c_oflag &= ~OPOST;
 
