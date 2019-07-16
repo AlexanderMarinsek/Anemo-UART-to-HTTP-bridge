@@ -49,7 +49,7 @@ int8_t str_fifo_write(str_fifo_t *fifo, char *data){
      */
 	if(tmp_write_idx == fifo->read_idx){
         fifo->read_idx = (fifo->read_idx+1)%fifo->buf_size;
-		printf("Fifo: circural overwrite\n");
+		printf("Fifo: circular overwrite (address: %p)\n", (void *)fifo);
     }
     for(i=0; i < fifo->str_size; i++){
         fifo->buffer[fifo->write_idx][i] = data[i];

@@ -61,7 +61,7 @@
 
 
 #define REQUEST_FMT                        					\
-    "POST /latest HTTP/1.1\r\n" 							\
+    "POST /data/latest HTTP/1.1\r\n" 							\
     "Host: %s\r\n" 											\
     "Content-Type: application/json; charset=utf-8\r\n" 	\
     "Content-Length: %lu\r\n\r\n" 							\

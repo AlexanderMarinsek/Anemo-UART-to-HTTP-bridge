@@ -21,7 +21,8 @@
 
 #define MEASUREMENTS_FILENAME               "./measurements/data.json"
 #define SERIAL_PORTNAME                     "/dev/ttyACM0"
-#define SERVER_HOSTNAME                     "127.0.0.1"
+//#define SERVER_HOSTNAME                     "127.0.0.1"
+#define SERVER_HOSTNAME                     "www.node.anemo.si"
 #define SERVER_PORT                         (5761)
 
 #define SHORT_SLEEP_TIME_US					10000		/* 10 ms */
@@ -31,7 +32,9 @@
 
 /* Pooling based tasks */
 int8_t (*task_ptrs[]) (void) =
-	{&buffer_task_run, &storage_task_run, &requests_task_run};
+	{&buffer_task_run, &requests_task_run, &storage_task_run};
+	//{&buffer_task_run, &requests_task_run};
+	//{&buffer_task_run};
 /* Get number of tasks */
 int8_t num_of_tasks = (sizeof(task_ptrs) / sizeof(task_ptrs[0]));
 
@@ -105,9 +108,20 @@ int main (int argc, char* argv[]) {
 
 
     printf("\n*\tInit successful:\n");
+
     printf("Number of tasks: %d\n", num_of_tasks);
     printf("Sleep ampunt [us]:  %d and %d\n",
 		SHORT_SLEEP_TIME_US, LONG_SLEEP_TIME_US);
+
+	printf("Fifo addresses (for later error handling):\n"
+			"0: \t%p\n"
+			"1: \t%p\n"
+			"2: \t%p\n",
+			(void *)fifo_buffers[0],
+			(void *)fifo_buffers[1],
+			(void *)fifo_buffers[2]);
+
+
     printf("\n*\tBegin main loop\n\n");
 
 
@@ -155,6 +169,7 @@ int main (int argc, char* argv[]) {
 
 		/* Go to (interruptable) sleep */
 		usleep(sleep_time_us);
+		//printf("AROUND\n");
 
 
         /*printf( "***FIFO POINTERS: \n"

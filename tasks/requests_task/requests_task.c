@@ -146,6 +146,7 @@ int8_t requests_task_init_socket(char *_host, int16_t portno) {
 /*  Check for data, create and enable socket, write, read and evaluate.
  */
 int8_t requests_task_run(void) {
+	//printf("REQUEST TASK\n");
 	/* Declare function pointer, that is: int8_t myFun (void) {...} */
     int8_t (*state_fun_ptr) (void);
     /* Get pointer with regard to current socket state, accepts no arguments */

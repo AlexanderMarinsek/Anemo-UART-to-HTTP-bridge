@@ -15,7 +15,7 @@
 /* LOCALS *********************************************************************/
 
 /* Fifo for raw serial data */
-static str_fifo_t fifo = {
+static str_fifo_t serial_raw_fifo = {
 	0,
 	0,
 	SERIAL_FIFO_BUFFER_SIZE,
@@ -48,11 +48,11 @@ static void signal_handler_IO (int status);
 
 /* FUNCTIONS (GLOBAL) *********************************************************/
 
-/*  Init raw serial data fifo.
+/*  Init raw serial data serial_raw_fifo.
  */
 int8_t serial_init_fifo(str_fifo_t **_fifo){
-    *_fifo = &fifo;
-    setup_str_fifo(&fifo, SERIAL_FIFO_BUFFER_SIZE, RAW_FIFO_STRING_SIZE);
+    *_fifo = &serial_raw_fifo;
+    setup_str_fifo(&serial_raw_fifo, SERIAL_FIFO_BUFFER_SIZE, RAW_FIFO_STRING_SIZE);
     return 0;
 }
 
@@ -85,7 +85,14 @@ void signal_handler_IO (int status)
     /* Read incoming to temporary string buffer */
 	rx_length = read(fd, (void*)rx_buffer, RAW_FIFO_STRING_SIZE-1);
     /* Write to buffer */
-    str_fifo_write(&fifo, rx_buffer);
+    str_fifo_write(&serial_raw_fifo, rx_buffer);
+    /*printf("serial handler - serial_raw_fifo:\n"
+    		"%u\n"
+    		"%u\n",
+			serial_raw_fifo.read_idx,
+			serial_raw_fifo.write_idx);
+    printf("%s\n", rx_buffer);*/
+
 }
 
 

@@ -55,10 +55,16 @@ int8_t buffer_task_init (str_fifo_t *_fifo_buffers[3]) {
     int i;
     for (i=0; i<3; i++) {
         fifo_buffers[i] = _fifo_buffers[i];
-        /*printf("-Address: %p, %d\n", (void *)&_fifo_buffers[i], i);
-        printf("-Address: %p, %d\n", (void *)_fifo_buffers[i], i);
-        printf("-Address: %p, %d\n", (void *)&fifo_buffers[i], i);
-        printf("-Address: %p, %d\n", (void *)fifo_buffers[i], i);*/
+        //printf("-Address: %p, %d\n", (void *)&_fifo_buffers[i], i);
+        //printf("-Address: %p, %d\n", (void *)_fifo_buffers[i], i);
+        //printf("-Address: %p, %d\n", (void *)&fifo_buffers[i], i);
+        /*printf("-Address: %p, %d\n", (void *)fifo_buffers[i], i);
+        printf("%p, %p, %p, %p, %p\n",
+			(void *)&(fifo_buffers[i]->read_idx),
+			(void *)&(fifo_buffers[i]->write_idx),
+			(void *)&(fifo_buffers[i]->buf_size),
+			(void *)&(fifo_buffers[i]->str_size),
+			(void *)&(fifo_buffers[i]->buffer));*/
     }
 
     json_incoming.num_of_nested_obj = 0;
@@ -71,6 +77,7 @@ int8_t buffer_task_init (str_fifo_t *_fifo_buffers[3]) {
  *  local storage and requests buffer.
  */
 int8_t buffer_task_run (void) {
+	//printf("BUFFER TASK\n");
     /* Clear serial buffer */
     memset(tmp_serial_buffer, 0, FIFO_STRING_SIZE);
     /* If available, read raw string from fifo buffer */
@@ -94,6 +101,11 @@ int8_t buffer_task_run (void) {
             _reset_json_incoming_str_buffer();
         }
     }
+    /*printf("buffer task - serial_raw_fifo:\n"
+    		"%u\n"
+    		"%u\n",
+			fifo_buffers[0]->read_idx,
+			fifo_buffers[0]->write_idx);*/
     return 0;
 }
 

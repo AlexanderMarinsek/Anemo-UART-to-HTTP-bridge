@@ -56,13 +56,14 @@ int8_t storage_task_init_file (char *_filename) {
 
 
 int8_t storage_task_run (void) {
-   if (str_fifo_read_auto_inc(&fifo, data_save_str) == 0) {
-        ofp = fopen(filename, "a");
-        // -- move to output buffer and flush immediately
-        fprintf(ofp, "%s\n", data_save_str);
-        fflush(ofp);
-        fclose(ofp);
-   }
+	//printf("STORAGE TASK\n");
+	if (str_fifo_read_auto_inc(&fifo, data_save_str) == 0) {
+		ofp = fopen(filename, "a");
+		// -- move to output buffer and flush immediately
+		fprintf(ofp, "%s\n", data_save_str);
+		fflush(ofp);
+		fclose(ofp);
+	}
 
-   return 0;
+	return 0;
 }
