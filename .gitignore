@@ -2,5 +2,12 @@
 # Ignore object files
 *.o
 
-# Ignore executable (in ./bin/)
-bin/
+# Ignore executable contents
+bin/*
+# Exception to the rule (keep directory)
+!bin/.gitkeep 
+
+# Ignore measurement data
+measurement/*
+# Exception to the rule (keep directory)
+!measurement/.gitkeep 
