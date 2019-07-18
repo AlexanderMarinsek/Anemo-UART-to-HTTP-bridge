@@ -374,7 +374,7 @@ int8_t _add_request_data(void) {
     str_fifo_read(&request_fifo, request_data_buf);
     /* Add request data to request buffer */
     sprintf(request_buf, REQUEST_FMT,
-		host, strlen(request_data_buf), request_data_buf);
+		host, (long unsigned int)strlen(request_data_buf), request_data_buf);
     /* Set socket state variable */
     socket_state = SOCKET_STATE_WRITE;
 

@@ -64,7 +64,7 @@
     "POST /measurement HTTP/1.1\r\n" 						\
     "Host: %s\r\n" 											\
     "Content-Type: application/json; charset=utf-8\r\n" 	\
-    "Content-Length: %u\r\n\r\n" 							\
+    "Content-Length: %lu\r\n\r\n" 							\
     "%s\r\n\r\n"
 
 /* Requset, request data and response buffer sizes */
