@@ -11,3 +11,8 @@ bin/*
 measurement/*
 # Exception to the rule (keep directory)
 !measurement/.gitkeep 
+
+# Ignore Eclips' hidden directories and files
+.*
+!.git
+!.gitignore
