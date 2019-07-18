@@ -1,3 +1,6 @@
+
+.PHONY = all clean
+
 CC = gcc
 CFLAGS = -g -Wall -I.
 
@@ -26,12 +29,13 @@ all: main
 
 # -- make main module
 main: $(OBJ)
-	$(CC) $(CFLAGS) $^ -o $@ $(EXTRA_LIBS)
+	$(CC) $(CFLAGS) $^ -o bin/$@
 
 # -- object files assembly rule
 %.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c $< -o $@
+	
 
 # -- delete .o files in main directory and sub-directories
 clean:
-	rm *.o */*.o
+	rm *.o */*.o */*/*.o

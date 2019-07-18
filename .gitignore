@@ -1,2 +1,6 @@
+
+# Ignore object files
 *.o
-*.json
+
+# Ignore executable (in ./bin/)
+bin/
