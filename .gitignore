@@ -8,7 +8,7 @@ bin/*
 !bin/.gitkeep 
 
 # Ignore measurement data
-measurement/*
+##measurement/*
 # Exception to the rule (keep directory)
 !measurement/.gitkeep 
 

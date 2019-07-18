@@ -22,8 +22,8 @@
 #define MEASUREMENTS_FILENAME               "./measurement/data.json"
 #define SERIAL_PORTNAME                     "/dev/ttyACM0"
 //#define SERVER_HOSTNAME                     "127.0.0.1"
-#define SERVER_HOSTNAME                     "10.0.0.5"
-//#define SERVER_HOSTNAME                     "www.node.anemo.si"
+//#define SERVER_HOSTNAME                     "10.0.0.5"
+#define SERVER_HOSTNAME                     "www.node.anemo.si"
 #define SERVER_PORT                         (5761)
 
 #define SHORT_SLEEP_TIME_US					10000		/* 10 ms */
