@@ -1,5 +1,5 @@
-#ifndef REQUESTS_TASK_H
-#define REQUESTS_TASK_H
+#ifndef REQUEST_TASK_H
+#define REQUEST_TASK_H
 
 /*
  *  Task for issuing HTTP requests. Non blocking, asynchronous pooling based.
@@ -27,8 +27,8 @@
 #include <errno.h>			/* Socket error reporting */
 
 
-#ifndef DEBUG_REQUESTS
-#define DEBUG_REQUESTS 0
+#ifndef DEBUG_REQUEST
+#define DEBUG_REQUEST 0
 #endif
 
 /* Socket state codes */
@@ -61,7 +61,7 @@
 
 
 #define REQUEST_FMT                        					\
-    "POST /data/latest HTTP/1.1\r\n" 							\
+    "POST /measurement HTTP/1.1\r\n" 						\
     "Host: %s\r\n" 											\
     "Content-Type: application/json; charset=utf-8\r\n" 	\
     "Content-Length: %lu\r\n\r\n" 							\
@@ -84,7 +84,7 @@
  *  	-1: error
  *  	 0: success
  */
-int8_t requests_task_init_fifo (str_fifo_t **_fifo);
+int8_t request_task_init_fifo (str_fifo_t **_fifo);
 
 /*  Create socket. Will not try connecting, returns OK, even if host is down.
  *   p1: hostname string
@@ -94,7 +94,7 @@ int8_t requests_task_init_fifo (str_fifo_t **_fifo);
  *  	-1: error
  *  	 0: success
  */
-int8_t requests_task_init_socket (char *_host, int16_t portno);
+int8_t request_task_init_socket (char *_host, int16_t portno);
 
 /*  Check for data, create and enable socket, write, read and evaluate.
  *
@@ -103,7 +103,7 @@ int8_t requests_task_init_socket (char *_host, int16_t portno);
  *  	 0: idle
  *  	 1: busy
  */
-int8_t requests_task_run (void);
+int8_t request_task_run (void);
 
 
 

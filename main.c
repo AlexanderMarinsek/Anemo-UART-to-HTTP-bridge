@@ -10,19 +10,19 @@
 
 #include "fifo/fifo.h"
 #include "serial/serial.h"
-#include "tasks/buffer_task/buffer_task.h"
-#include "tasks/storage_task/storage_task.h"
-#include "tasks/requests_task/requests_task.h"
+#include "task/buffer_task/buffer_task.h"
+#include "task/storage_task/storage_task.h"
+#include "task/request_task/request_task.h"
 
 #include <stdio.h>      /* Standard input/output definitions */
 #include <unistd.h>     /* Sleep */
 
 
 
-#define MEASUREMENTS_FILENAME               "./measurements/data.json"
+#define MEASUREMENTS_FILENAME               "./measurement/data.json"
 #define SERIAL_PORTNAME                     "/dev/ttyACM0"
-//#define SERVER_HOSTNAME                     "127.0.0.1"
-#define SERVER_HOSTNAME                     "www.node.anemo.si"
+#define SERVER_HOSTNAME                     "127.0.0.1"
+//#define SERVER_HOSTNAME                     "www.node.anemo.si"
 #define SERVER_PORT                         (5761)
 
 #define SHORT_SLEEP_TIME_US					10000		/* 10 ms */
@@ -32,8 +32,8 @@
 
 /* Pooling based tasks */
 int8_t (*task_ptrs[]) (void) =
-	{&buffer_task_run, &requests_task_run, &storage_task_run};
-	//{&buffer_task_run, &requests_task_run};
+	{&buffer_task_run, &request_task_run, &storage_task_run};
+	//{&buffer_task_run, &request_task_run};
 	//{&buffer_task_run};
 /* Get number of tasks */
 int8_t num_of_tasks = (sizeof(task_ptrs) / sizeof(task_ptrs[0]));
@@ -93,13 +93,13 @@ int main (int argc, char* argv[]) {
     }
 
     /* Init requests fifo */
-    if (requests_task_init_fifo(&fifo_buffers[2]) != 0) {
-        printf("Error: requests_task_init_fifo");
+    if (request_task_init_fifo(&fifo_buffers[2]) != 0) {
+        printf("Error: request_task_init_fifo");
         return -1;
     }
     /* Init requests socket */
-    if (requests_task_init_socket(SERVER_HOSTNAME, SERVER_PORT) != 0) {
-        printf("Error: requests_task_init_host_and_port");
+    if (request_task_init_socket(SERVER_HOSTNAME, SERVER_PORT) != 0) {
+        printf("Error: request_task_init_host_and_port");
         return -1;
     }
 

@@ -5,18 +5,18 @@ CFLAGS = -g -Wall -I.
 DEPS = 	fifo/fifo.h								\
 		timestamp/timestamp.h					\
 	    serial/serial.h							\
-	    tasks/buffer_task/buffer_task.h			\
-		tasks/storage_task/storage_task.h		\
-		tasks/requests_task/requests_task.h
+	    task/buffer_task/buffer_task.h			\
+		task/storage_task/storage_task.h		\
+		task/request_task/request_task.h
 
 # -- list of objet files
 OBJ = 	main.o									\
 		fifo/fifo.o								\
 		timestamp/timestamp.o					\
 		serial/serial.o							\
-		tasks/buffer_task/buffer_task.o			\
-		tasks/storage_task/storage_task.o		\
-		tasks/requests_task/requests_task.o
+		task/buffer_task/buffer_task.o			\
+		task/storage_task/storage_task.o		\
+		task/request_task/request_task.o
 
 # -- list of phony targets
 .PHONY: clean

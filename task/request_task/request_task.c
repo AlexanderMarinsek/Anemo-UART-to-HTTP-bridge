@@ -1,4 +1,4 @@
-#include "requests_task.h"
+#include "request_task.h"
 #include "../../fifo/fifo.h"
 #include "../../timestamp/timestamp.h"
 
@@ -44,7 +44,7 @@ static ssize_t prev_read_result;
 char request_data_buf[REQUEST_FIFO_STR_SIZE];
 
 /* Fifo for data storage */
-str_fifo_t requests_fifo = {
+str_fifo_t request_fifo = {
 	0,
 	0,
 	REQUEST_FIFO_BUF_SIZE,
@@ -71,7 +71,7 @@ int8_t _write_socket(void);
 int8_t _read_socket(void);
 int8_t _evaluate_socket(void);
 int8_t _close_socket(void);
-int8_t _clear_requests_buffers(void);
+int8_t _clear_request_buffers(void);
 
 int8_t _check_fifo_for_new_data (void);
 
@@ -87,14 +87,14 @@ void _reset_static_vars(void);
 
 /*  Point outer pointer to local fifo struct and init storage for fifo.
  */
-int8_t requests_task_init_fifo (str_fifo_t **_fifo) {
+int8_t request_task_init_fifo (str_fifo_t **_fifo) {
     /* Set outer pointer to point to fifo local struct */
-    *_fifo = &requests_fifo;
+    *_fifo = &request_fifo;
     /* Set up memory for fifo struct and return success/error */
     int8_t fifo_status = setup_str_fifo(
-        &requests_fifo, REQUEST_FIFO_BUF_SIZE, REQUEST_FIFO_STR_SIZE);
+        &request_fifo, REQUEST_FIFO_BUF_SIZE, REQUEST_FIFO_STR_SIZE);
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("*\tREQUEST FIFO INITIATED\n");
 #endif
 
@@ -104,7 +104,7 @@ int8_t requests_task_init_fifo (str_fifo_t **_fifo) {
 
 /*  Init socket using host address and port.s
  */
-int8_t requests_task_init_socket(char *_host, int16_t portno) {
+int8_t request_task_init_socket(char *_host, int16_t portno) {
 
     /* Check hostname length */
     if (strlen(_host) > HOST_ADDR_BUF_SIZE-1) {
@@ -141,7 +141,7 @@ int8_t requests_task_init_socket(char *_host, int16_t portno) {
     /* Set socket state variable */
 	socket_state = SOCKET_STATE_IDLE;
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("*\tSOCKET INITIATED\n");
 #endif
 
@@ -151,7 +151,7 @@ int8_t requests_task_init_socket(char *_host, int16_t portno) {
 
 /*  Check for data, create and enable socket, write, read and evaluate.
  */
-int8_t requests_task_run(void) {
+int8_t request_task_run(void) {
 	//printf("REQUEST TASK\n");
 	/* Declare function pointer, that is: int8_t myFun (void) {...} */
     int8_t (*state_fun_ptr) (void);
@@ -204,7 +204,7 @@ int8_t requests_task_run(void) {
 int8_t (*_get_socket_state_funciton(void))(void) {
     int8_t (*state_fun_ptr) (void);
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
     printf("Socket state: %d\n", socket_state);
 #endif
 
@@ -254,7 +254,7 @@ int8_t (*_get_socket_state_funciton(void))(void) {
  */
 int8_t _idle_socket(void) {
 	if (_check_fifo_for_new_data() == 0) {
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 		printf("*\tSOCKET FIFO DATA DETECTED\n");
 #endif
         socket_state = SOCKET_STATE_CREATE;
@@ -282,7 +282,7 @@ int8_t _create_socket(void) {
      */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("socket(): %d\n", sockfd);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
@@ -310,7 +310,7 @@ int8_t _create_socket(void) {
     /* Set socket state variable */
     socket_state = SOCKET_STATE_CONNECT;
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("*\tSOCKET CREATED\n");
 #endif
 
@@ -333,7 +333,7 @@ int8_t _connect_socket(void){
 	int connected =
 		connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("connect(): %d\n", connected);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
@@ -348,7 +348,7 @@ int8_t _connect_socket(void){
     /* Set socket state variable */
 	socket_state = SOCKET_STATE_ADD_DATA;
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("*\tSOCKET CONNECTED\n");
 #endif
 
@@ -369,16 +369,16 @@ int8_t _add_request_data(void) {
 	/* Reset read/write byte counters */
 	_reset_static_vars();
 	/* Clear all buffers */
-    _clear_requests_buffers();
+    _clear_request_buffers();
     /* Get row of data from fifo buffer */
-    str_fifo_read(&requests_fifo, request_data_buf);
+    str_fifo_read(&request_fifo, request_data_buf);
     /* Add request data to request buffer */
     sprintf(request_buf, REQUEST_FMT,
 		host, strlen(request_data_buf), request_data_buf);
     /* Set socket state variable */
     socket_state = SOCKET_STATE_WRITE;
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("\tADDED REQUEST DATA (%lu):\n%s\n",
 		strlen(request_buf), request_buf);
 #endif
@@ -409,7 +409,7 @@ int8_t _write_socket(void) {
     size_t result =
 		write(sockfd, request_buf + bytes_sent, request_len - bytes_sent);
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("write(): %ld, %ld, %ld\n", result, bytes_sent, request_len);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
@@ -426,7 +426,7 @@ int8_t _write_socket(void) {
 
     /* Finished writing (writen everything, nonthing else left) */
     if (request_len == bytes_sent || result == 0) {
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
     	printf("*\tREQUEST WRITTEN (%lu): \n%s\n",
 			request_len, request_buf);
 #endif
@@ -466,7 +466,7 @@ int8_t _read_socket(void) {
     ssize_t result =
     		read(sockfd, response_buf + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 	printf("read(): %ld, %ld, %d\n", result, bytes_read, RESPONSE_BUF_SIZE);
 	printf("read(): \n%s\n", response_buf);
     printf("errno: %d | %s\n", errno, strerror(errno));
@@ -500,7 +500,7 @@ int8_t _read_socket(void) {
 	    return -1;
 	}
 
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
     printf("Previous, current, total read(): %ld, %ld, %ld\n",
 		prev_read_result, result, bytes_read);
 #endif
@@ -508,7 +508,7 @@ int8_t _read_socket(void) {
 	/* Check for end of response */
     if (prev_read_result > 0) {		/* Previously read something */
     	if (result == -1) {		/* Nothing new was read */
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 			printf("*\tRESPONSE RECEIVED (%ld):\n%s\n",
 				bytes_read, response_buf);
 #endif
@@ -549,7 +549,7 @@ int8_t _evaluate_socket(void) {
      * The first request after starting the app may contain missing chars.
      * The missing chars are usually in the region 40-80 (hash-error) */
     if (request_400 != NULL) {
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 		printf("*\tRESPONSE 400\n");
 #endif
 		printf( "\tReceived response code 400, continue with next request.\n"
@@ -558,7 +558,7 @@ int8_t _evaluate_socket(void) {
 
     /* Check, if match in string comparison exists */
 	if (request_ok != NULL){
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 		printf("*\tRESPONSE OK\n");
 #endif
 	}
@@ -566,7 +566,7 @@ int8_t _evaluate_socket(void) {
     /* Check for response */
 	if (request_ok != NULL || request_400 != NULL){
 		/* Increment read pointer, means next data row can be sent */
-		if (fifo_increment_read_idx(&requests_fifo) != 0) {
+		if (fifo_increment_read_idx(&request_fifo) != 0) {
 			/* Is this error possible (?) */
 	    	/* Refresh local timestamp variable and report error */
 			get_timestamp_raw(timestamp);
@@ -606,7 +606,7 @@ int8_t _close_socket(void) {
         return 1;
     }
     socket_state = SOCKET_STATE_IDLE;
-#if(DEBUG_REQUESTS==1)
+#if(DEBUG_REQUEST==1)
 		printf("*\tSOCKET CLOSED\n");
 #endif
     return 0;
@@ -623,7 +623,7 @@ int8_t _close_socket(void) {
 int8_t _check_fifo_for_new_data (void) {
 
 	/* Check for pending data */
-    if (str_fifo_read(&requests_fifo, request_data_buf) == 0) {
+    if (str_fifo_read(&request_fifo, request_data_buf) == 0) {
         return 0;
     }
 
@@ -643,7 +643,7 @@ void _reset_static_vars(void){
 
 /* 	Write zeroes to request, response and request data buffers.
  */
-int8_t _clear_requests_buffers(void) {
+int8_t _clear_request_buffers(void) {
     memset(request_buf, 0, REQUEST_BUF_SIZE);
     memset(request_data_buf, 0, REQUEST_FIFO_STR_SIZE);
     memset(response_buf, 0, RESPONSE_BUF_SIZE);
