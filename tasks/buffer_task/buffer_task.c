@@ -92,6 +92,9 @@ int8_t buffer_task_run (void) {
                 return -1;
             }
 
+
+            //printf("***%s***\n", json_incoming.str_buffer.buffer);
+
             /* Write JSON data to data storage buffer */
             str_fifo_write(fifo_buffers[1], json_incoming.str_buffer.buffer);
 
@@ -255,7 +258,7 @@ static int8_t _add_timestamp_to_json (void) {
     int tmp_write_idx = 0;
     int buf_write_idx = 0;
 
-    /* Add opening braces '{' */
+    /* Add opening braces '{' to temporary buffer */
     tmp_json[tmp_write_idx] = json_incoming.str_buffer.buffer[buf_write_idx];
     tmp_write_idx++;
     buf_write_idx++;
@@ -269,7 +272,7 @@ static int8_t _add_timestamp_to_json (void) {
         &json_incoming.str_buffer.buffer[buf_write_idx],
         strlen(json_incoming.str_buffer.buffer));
 
-    /* Overwrite incoming JSON data */
+    /* Overwrite incoming JSON data with temporary buffer */
     memcpy(json_incoming.str_buffer.buffer, tmp_json, strlen(tmp_json) + 1);
 
     return 0;

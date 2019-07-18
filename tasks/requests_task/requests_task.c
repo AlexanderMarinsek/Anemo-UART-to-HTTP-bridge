@@ -33,6 +33,10 @@ static char request_buf[REQUEST_BUF_SIZE];
 /* Response including headers, body ... */
 static char response_buf[RESPONSE_BUF_SIZE];
 
+/* Read/write byte counters */
+static ssize_t bytes_sent;
+static ssize_t bytes_read;
+static ssize_t prev_read_result;
 
 /* GLOBALS ********************************************************************/
 
@@ -75,6 +79,8 @@ void _report_socket_errno(void);
 
 int8_t _has_socket_timer_ended(void);
 void _reset_socket_timer(void);
+
+void _reset_static_vars(void);
 
 
 /* FUNCTIONS ******************************************************************/
@@ -360,6 +366,8 @@ int8_t _connect_socket(void){
  *		 0: success
  */
 int8_t _add_request_data(void) {
+	/* Reset read/write byte counters */
+	_reset_static_vars();
 	/* Clear all buffers */
     _clear_requests_buffers();
     /* Get row of data from fifo buffer */
@@ -389,7 +397,7 @@ int8_t _add_request_data(void) {
  *		 1: still writing
  */
 int8_t _write_socket(void) {
-    static ssize_t bytes_sent = 0;
+    //static ssize_t bytes_sent = 0;
     /* Only write the bytes containing data (string) */
     ssize_t request_len = strlen(request_buf);
 
@@ -423,7 +431,7 @@ int8_t _write_socket(void) {
 			request_len, request_buf);
 #endif
 		/* Reset static vars */
-    	bytes_sent = 0;
+    	//bytes_sent = 0;
         /* Set socket state variable */
         socket_state = SOCKET_STATE_READ;
         return 0;
@@ -446,9 +454,9 @@ int8_t _write_socket(void) {
  */
 int8_t _read_socket(void) {
 	/* Read bytes amount, or 'response_buf' write ptr */
-    static ssize_t bytes_read = 0;
+    //static ssize_t bytes_read = 0;
     /* Previous amount of bytes, that were read */
-    static ssize_t prev_result = 0;
+    //static ssize_t prev_read_result = 0;
 
     /* Read and get amount of bytes, that were read
      * 	-1: nothing new
@@ -460,6 +468,7 @@ int8_t _read_socket(void) {
 
 #if(DEBUG_REQUESTS==1)
 	printf("read(): %ld, %ld, %d\n", result, bytes_read, RESPONSE_BUF_SIZE);
+	printf("read(): \n%s\n", response_buf);
     printf("errno: %d | %s\n", errno, strerror(errno));
 //	printf("%d | %d | %d | %d | %d | %d | %d | %d \n",
 //		EAGAIN, EWOULDBLOCK, EBADF, EFAULT, EINTR, EINVAL, EIO, EISDIR);
@@ -467,8 +476,12 @@ int8_t _read_socket(void) {
 
     /* Check for socket error */
     //if (errno == ENOTCONN || errno == EBADF)
-    if (result == 0) {
+    //if (result == 0) {
+    if (result == 0 && errno != EINPROGRESS) {
 		_report_socket_errno();
+		/* Reset static vars */
+		//bytes_read = 0;
+		//prev_read_result = 0;
         socket_state = SOCKET_STATE_CLOSE;
         return 0;
     }
@@ -489,11 +502,11 @@ int8_t _read_socket(void) {
 
 #if(DEBUG_REQUESTS==1)
     printf("Previous, current, total read(): %ld, %ld, %ld\n",
-		prev_result, result, bytes_read);
+		prev_read_result, result, bytes_read);
 #endif
 
 	/* Check for end of response */
-    if (prev_result > 0) {		/* Previously read something */
+    if (prev_read_result > 0) {		/* Previously read something */
     	if (result == -1) {		/* Nothing new was read */
 #if(DEBUG_REQUESTS==1)
 			printf("*\tRESPONSE RECEIVED (%ld):\n%s\n",
@@ -501,14 +514,14 @@ int8_t _read_socket(void) {
 #endif
     		/* Reset static vars */
     		bytes_read = 0;
-    		prev_result = 0;
+    		prev_read_result = 0;
             socket_state = SOCKET_STATE_EVAL_RESPONSE;
     		return 0;
     	}
     }
 
     /* Set for next function call */
-	prev_result = result;
+	prev_read_result = result;
 
     return 1;
 }
@@ -530,12 +543,28 @@ int8_t _evaluate_socket(void) {
 
     /* Pointer to 'request_data_buf' substring inside of 'response_buf' */
     char *request_ok = strstr(response_buf, request_data_buf);
+    char *request_400 = strstr(response_buf, "400 Bad Request");
+
+    /* Check if JSON syntax s correct.
+     * The first request after starting the app may contain missing chars.
+     * The missing chars are usually in the region 40-80 (hash-error) */
+    if (request_400 != NULL) {
+#if(DEBUG_REQUESTS==1)
+		printf("*\tRESPONSE 400\n");
+#endif
+		printf( "\tReceived response code 400, continue with next request.\n"
+				"\tOriginal request:\n%s\n", request_buf);
+    }
 
     /* Check, if match in string comparison exists */
 	if (request_ok != NULL){
 #if(DEBUG_REQUESTS==1)
 		printf("*\tRESPONSE OK\n");
 #endif
+	}
+
+    /* Check for response */
+	if (request_ok != NULL || request_400 != NULL){
 		/* Increment read pointer, means next data row can be sent */
 		if (fifo_increment_read_idx(&requests_fifo) != 0) {
 			/* Is this error possible (?) */
@@ -599,6 +628,16 @@ int8_t _check_fifo_for_new_data (void) {
     }
 
 	return 1;
+}
+
+
+/* Reset read/write byte counters (on error, or timer elapsed)
+ */
+void _reset_static_vars(void){
+	 bytes_sent = 0;
+	 bytes_read = 0;
+	 prev_read_result = 0;
+	 return;
 }
 
 

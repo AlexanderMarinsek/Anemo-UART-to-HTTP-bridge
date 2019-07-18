@@ -70,10 +70,10 @@
 /* Requset, request data and response buffer sizes */
 #define REQUEST_BUF_SIZE 				1024
 #define REQUEST_DATA_BUF_SIZE 			1024
-#define RESPONSE_BUF_SIZE 				(REQUEST_FIFO_STR_SIZE)
+#define RESPONSE_BUF_SIZE 				4096
 
 /* Host addres buffer size */
-#define HOST_ADDR_BUF_SIZE       64
+#define HOST_ADDR_BUF_SIZE       		64
 
 
 
