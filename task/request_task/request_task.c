@@ -545,6 +545,11 @@ int8_t _evaluate_socket(void) {
     char *request_ok = strstr(response_buf, request_data_buf);
     char *request_400 = strstr(response_buf, "400 Bad Request");
 
+#if(DEBUG_REQUEST==1)
+		printf("*\tEVALUATING\n%s\n", response_buf);
+		printf("*\tWITH\n%s\n", request_data_buf);
+#endif
+
     /* Check if JSON syntax s correct.
      * The first request after starting the app may contain missing chars.
      * The missing chars are usually in the region 40-80 (hash-error) */
