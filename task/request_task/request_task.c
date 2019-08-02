@@ -152,7 +152,7 @@ int8_t request_task_init_socket(char *_host, int16_t portno) {
 /*  Check for data, create and enable socket, write, read and evaluate.
  */
 int8_t request_task_run(void) {
-	//printf("REQUEST TASK\n");
+	printf("REQUEST TASK, state: %d\n", socket_state);
 	/* Declare function pointer, that is: int8_t myFun (void) {...} */
     int8_t (*state_fun_ptr) (void);
     /* Get pointer with regard to current socket state, accepts no arguments */
@@ -380,7 +380,7 @@ int8_t _add_request_data(void) {
 
 #if(DEBUG_REQUEST==1)
 	printf("\tADDED REQUEST DATA (%lu):\n%s\n",
-		strlen(request_buf), request_buf);
+		(long unsigned int)strlen(request_buf), request_buf);
 #endif
     return 0;
 }
@@ -410,7 +410,7 @@ int8_t _write_socket(void) {
 		write(sockfd, request_buf + bytes_sent, request_len - bytes_sent);
 
 #if(DEBUG_REQUEST==1)
-	printf("write(): %ld, %ld, %ld\n", result, bytes_sent, request_len);
+	printf("write(): %ld, %ld, %ld\n", (long int)result, (long int)bytes_sent, (long int)request_len);
     printf("errno: %d | %s\n", errno, strerror(errno));
 #endif
 
@@ -428,7 +428,7 @@ int8_t _write_socket(void) {
     if (request_len == bytes_sent || result == 0) {
 #if(DEBUG_REQUEST==1)
     	printf("*\tREQUEST WRITTEN (%lu): \n%s\n",
-			request_len, request_buf);
+			(long unsigned int)request_len, request_buf);
 #endif
 		/* Reset static vars */
     	//bytes_sent = 0;
@@ -467,7 +467,7 @@ int8_t _read_socket(void) {
     		read(sockfd, response_buf + bytes_read, RESPONSE_BUF_SIZE - bytes_read);
 
 #if(DEBUG_REQUEST==1)
-	printf("read(): %ld, %ld, %d\n", result, bytes_read, RESPONSE_BUF_SIZE);
+	printf("read(): %ld, %ld, %d\n", (long int)result, (long int)bytes_read, RESPONSE_BUF_SIZE);
 	printf("read(): \n%s\n", response_buf);
     printf("errno: %d | %s\n", errno, strerror(errno));
 //	printf("%d | %d | %d | %d | %d | %d | %d | %d \n",
@@ -502,7 +502,7 @@ int8_t _read_socket(void) {
 
 #if(DEBUG_REQUEST==1)
     printf("Previous, current, total read(): %ld, %ld, %ld\n",
-		prev_read_result, result, bytes_read);
+		(long int)prev_read_result, (long int)result, (long int)bytes_read);
 #endif
 
 	/* Check for end of response */
@@ -510,7 +510,7 @@ int8_t _read_socket(void) {
     	if (result == -1) {		/* Nothing new was read */
 #if(DEBUG_REQUEST==1)
 			printf("*\tRESPONSE RECEIVED (%ld):\n%s\n",
-				bytes_read, response_buf);
+				(long int)bytes_read, response_buf);
 #endif
     		/* Reset static vars */
     		bytes_read = 0;
@@ -544,6 +544,11 @@ int8_t _evaluate_socket(void) {
     /* Pointer to 'request_data_buf' substring inside of 'response_buf' */
     char *request_ok = strstr(response_buf, request_data_buf);
     char *request_400 = strstr(response_buf, "400 Bad Request");
+
+#if(DEBUG_REQUEST==1)
+		printf("*\tEVALUATING\n%s\n", response_buf);
+		printf("*\tWITH\n%s\n", request_data_buf);
+#endif
 
     /* Check if JSON syntax s correct.
      * The first request after starting the app may contain missing chars.

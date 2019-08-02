@@ -96,19 +96,23 @@ int8_t buffer_task_run (void) {
             //printf("***%s***\n", json_incoming.str_buffer.buffer);
 
             /* Write JSON data to data storage buffer */
-            str_fifo_write(fifo_buffers[1], json_incoming.str_buffer.buffer);
+            //str_fifo_write(fifo_buffers[1], json_incoming.str_buffer.buffer);
 
             /* Write JSON data to requests buffer */
             str_fifo_write(fifo_buffers[2], json_incoming.str_buffer.buffer);
+            
+            printf("buffer task - fifo indexes:\n"
+                "%u, %u | %u, %u | %u, %u\n",
+                fifo_buffers[0]->read_idx,
+                fifo_buffers[0]->write_idx,
+                fifo_buffers[1]->read_idx,
+                fifo_buffers[1]->write_idx,
+                fifo_buffers[2]->read_idx,
+                fifo_buffers[2]->write_idx);
 
             _reset_json_incoming_str_buffer();
         }
     }
-    /*printf("buffer task - serial_raw_fifo:\n"
-    		"%u\n"
-    		"%u\n",
-			fifo_buffers[0]->read_idx,
-			fifo_buffers[0]->write_idx);*/
     return 0;
 }
 
@@ -188,7 +192,7 @@ static int8_t _get_json_from_raw (void) {
             /* Add null at end */
             json_incoming.str_buffer.buffer
                 [json_incoming.str_buffer.current_write_idx] = '\0';
-            //printf("---%s---\n", json_incoming.str_buffer.buffer);
+            printf("---%s---\n", json_incoming.str_buffer.buffer);
             _set_json_incoming_status_to_idle();
             memset(tmp_serial_buffer, 0, FIFO_STRING_SIZE);
             return 0;
