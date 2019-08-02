@@ -57,6 +57,11 @@ int8_t get_timestamp_json_w_comma (char *_timestamp) {
         time_human->tm_year+1900, time_human->tm_mon+1, time_human->tm_mday,
         time_human->tm_hour, time_human->tm_min);
 
+    //struct tm *ptm = gmtime(&time_epoch);
+    char buf[TIMESTAMP_JSON_STRING_SIZE];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&time_epoch));
+    printf("%s\n", buf);
+
     return 0;
 }
 
