@@ -267,7 +267,7 @@ static int8_t _add_timestamp_to_json (void) {
     tmp_write_idx++;
     buf_write_idx++;
 
-    /* Add timestamp */
+    /* Add timestamp (don't include '/0' termination) */
     memcpy(&tmp_json[tmp_write_idx], timestamp, strlen(timestamp));
     tmp_write_idx += strlen(timestamp);
 

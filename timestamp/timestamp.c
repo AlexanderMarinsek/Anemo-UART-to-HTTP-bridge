@@ -12,7 +12,7 @@
 /* Calendar time (Epoch time) - usually signed int */
 static time_t time_epoch;
 /* Pointer to time structure, for specifications view 'ctime' at 'man7' */
-static struct tm *time_human;
+//static struct tm *time_human;
 /* Space for temporary timestamp */
 //static char timestamp [TIMESTAMP_STRING_SIZE];
 
@@ -34,9 +34,13 @@ int8_t get_timestamp_raw (char *_timestamp) {
     _refresh_timestamp ();
 
     // -- convert to standardised timestamp
-    sprintf(_timestamp, TIMESTAMP_RAW_FORMAT,
+    /*sprintf(_timestamp, TIMESTAMP_RAW_FORMAT,
         time_human->tm_year+1900, time_human->tm_mon+1, time_human->tm_mday,
-        time_human->tm_hour, time_human->tm_min);
+        time_human->tm_hour, time_human->tm_min);*/
+
+    /* Convert to UTC and format ISO 8601 */
+    strftime(_timestamp, TIMESTAMP_JSON_STRING_SIZE,
+		TIMESTAMP_UTC_RAW_FORMAT, gmtime(&time_epoch));
 
     return 0;
 }
@@ -53,21 +57,21 @@ int8_t get_timestamp_json_w_comma (char *_timestamp) {
     _refresh_timestamp ();
 
     // -- convert to standardised timestamp
-    sprintf(_timestamp, TIMESTAMP_JSON_FORMAT_W_COMMA,
+    /*sprintf(_timestamp, TIMESTAMP_JSON_FORMAT_W_COMMA,
         time_human->tm_year+1900, time_human->tm_mon+1, time_human->tm_mday,
-        time_human->tm_hour, time_human->tm_min);
+        time_human->tm_hour, time_human->tm_min);*/
 
-    //struct tm *ptm = gmtime(&time_epoch);
-    char buf[TIMESTAMP_JSON_STRING_SIZE];
-    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&time_epoch));
-    printf("%s\n", buf);
+    /* Convert to UTC and format ISO 8601 */
+    strftime(_timestamp, TIMESTAMP_JSON_STRING_SIZE,
+		TIMESTAMP_UTC_JSON_FORMAT_W_COMMA, gmtime(&time_epoch));
+
 
     return 0;
 }
 
 int8_t get_timestamp_epoch(long int *_time_epoch) {
 	_refresh_timestamp();
-	/* Make sure 'time_t' is equal to 'long int' */
+//	/* Make sure 'time_t' is equal to 'long int' */
 	*_time_epoch = (long int) time_epoch;
 	return 0;
 }
@@ -79,9 +83,10 @@ int8_t get_timestamp_epoch(long int *_time_epoch) {
  */
 static int8_t _refresh_timestamp (void) {
     /* Save current time since Unix Epoch in seconds */
-    time_epoch = time(NULL);
+    //time_epoch = time(NULL);
+	time(&time_epoch);
     /* Save current broken down time to time structure */
-    time_human = localtime(&time_epoch);
+    //time_human = localtime(&time_epoch);
 
     return 0;
 }

@@ -105,8 +105,9 @@ static int8_t _set_portname (char *_portname) {
         printf("Error: storage_task_init_file\n");
         return -1;
     }
-	/* Copy to local string */
+	/* Copy to module's local string (including '/0') */
     memcpy(portname, _portname, strlen(_portname)+1);
+    //memcpy(portname, _portname, PORTNAME_STRING_LEN);
 	return 0;
 }
 

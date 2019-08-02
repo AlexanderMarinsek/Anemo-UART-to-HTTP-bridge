@@ -12,6 +12,10 @@
 #define TIMESTAMP_JSON_FORMAT_W_COMMA      \
     "\"timestamp\":\"%04d-%02d-%02dT%02d:%02d\","
 
+#define TIMESTAMP_UTC_RAW_FORMAT                "%FT%TZ"
+#define TIMESTAMP_UTC_JSON_FORMAT_W_COMMA      \
+    "\"timestamp\":\"%FT%TZ\","
+
 
 /*  Get latest raw formated timestamp.
  *   p1: pointer to where timestamp should be written

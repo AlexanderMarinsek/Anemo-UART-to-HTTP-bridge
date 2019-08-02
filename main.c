@@ -53,9 +53,12 @@ str_fifo_t *fifo_buffers[3];
  */
 int main (int argc, char* argv[]) {
 
-	char tm[TIMESTAMP_JSON_STRING_SIZE];
-	get_timestamp_json_w_comma(tm);
-	printf("%s\n", tm);
+	char tmp1[TIMESTAMP_JSON_STRING_SIZE];
+	char tmp2[TIMESTAMP_RAW_STRING_SIZE];
+	get_timestamp_json_w_comma(tmp1);
+	get_timestamp_raw(tmp2);
+
+	printf("%s\n%s\n", tmp1, tmp2);
 
 
 	char serial_portname [PORTNAME_STRING_LEN] = {0};

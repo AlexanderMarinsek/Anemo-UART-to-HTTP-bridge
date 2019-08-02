@@ -114,7 +114,7 @@ int8_t request_task_init_socket(char *_host, int16_t portno) {
         return -1;
     }
 
-	/* Copy hostname to local string */
+	/* Copy hostname to local string (including '/0') */
     memcpy(host, _host, strlen(_host)+1);
 
 	/* Server data */
@@ -134,7 +134,7 @@ int8_t request_task_init_socket(char *_host, int16_t portno) {
     memset(&serv_addr,0,sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(portno);
-    memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
+    memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
 
     _reset_socket_timer();
 

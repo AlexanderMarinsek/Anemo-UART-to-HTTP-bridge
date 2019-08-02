@@ -49,7 +49,7 @@ int8_t storage_task_init_file (char *_filename) {
     if (strlen(_filename) > FILENAME_STRING_LEN-1) {
         return -1;
     }
-	/* Copy to local string */
+	/* Copy to local string (including '/0') */
     memcpy(filename, _filename, strlen(_filename)+1);
     return 0;
 }
