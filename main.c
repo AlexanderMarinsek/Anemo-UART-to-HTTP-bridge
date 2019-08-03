@@ -22,8 +22,8 @@
 #define MEASUREMENTS_FILENAME               "./measurement/data.json"
 #define SERIAL_PORTNAME                     "/dev/ttyACM0"
 //#define SERVER_HOSTNAME                     "127.0.0.1"
-//#define SERVER_HOSTNAME                     "10.0.0.5"
-#define SERVER_HOSTNAME                     "www.node.anemo.si"
+#define SERVER_HOSTNAME                     "10.0.0.5"
+//#define SERVER_HOSTNAME                     "www.node.anemo.si"
 #define SERVER_PORT                         (5761)
 
 #define SHORT_SLEEP_TIME_US					10000		/* 10 ms */
@@ -52,14 +52,6 @@ str_fifo_t *fifo_buffers[3];
  * 	p2: (if give) serial port path name
  */
 int main (int argc, char* argv[]) {
-
-	char tmp1[TIMESTAMP_JSON_STRING_SIZE];
-	char tmp2[TIMESTAMP_RAW_STRING_SIZE];
-	get_timestamp_json_w_comma(tmp1);
-	get_timestamp_raw(tmp2);
-
-	printf("%s\n%s\n", tmp1, tmp2);
-
 
 	char serial_portname [PORTNAME_STRING_LEN] = {0};
 	if (argc == 1) {

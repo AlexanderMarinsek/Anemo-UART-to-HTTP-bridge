@@ -9,6 +9,7 @@ DEPS = 	fifo/fifo.h								\
 		timestamp/timestamp.h					\
 	    serial/serial.h							\
 	    task/buffer_task/buffer_task.h			\
+	    task/task/task.h						\
 		task/storage_task/storage_task.h		\
 		task/request_task/request_task.h
 

@@ -1,4 +1,5 @@
 #include "request_task.h"
+#include "../task.h"
 #include "../../fifo/fifo.h"
 #include "../../timestamp/timestamp.h"
 
@@ -35,8 +36,11 @@ static char response_buf[RESPONSE_BUF_SIZE];
 
 /* Read/write byte counters */
 static ssize_t bytes_sent;
+/* Read bytes amount, or 'response_buf' write ptr */
 static ssize_t bytes_read;
+/* Previous amount of bytes, that were read */
 static ssize_t prev_read_result;
+
 
 /* GLOBALS ********************************************************************/
 
@@ -52,11 +56,14 @@ str_fifo_t request_fifo = {
 	NULL
 };
 
-/* Gets written externally. Static to avoid linkage conflicts. */
+/* Timestamp - gets written externally. Static to avoid linkage conflicts. */
 static char timestamp[TIMESTAMP_RAW_STRING_SIZE];
 
-/* Used to measure socket time in single state */
-long int socket_timer_start = 0;
+/* Used to measure time in single state */
+static long int state_change_time = 0;
+
+/* Used to measure time in single state */
+static long int retry_time = 0;
 
 
 /* PROTOTYPES *****************************************************************/
@@ -77,8 +84,12 @@ int8_t _check_fifo_for_new_data (void);
 
 void _report_socket_errno(void);
 
-int8_t _has_socket_timer_ended(void);
-void _reset_socket_timer(void);
+int8_t _has_max_state_timer_ended(void);
+int8_t _has_retry_timer_ended(void);
+void _state_timer_reset_all(void);
+void _state_timer_reset_max(void);
+void _timer_reset_retry(void);
+void _report_max_state_timer_ended (void);
 
 void _reset_static_vars(void);
 
@@ -136,7 +147,7 @@ int8_t request_task_init_socket(char *_host, int16_t portno) {
     serv_addr.sin_port = htons(portno);
     memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
 
-    _reset_socket_timer();
+    _state_timer_reset_max();
 
     /* Set socket state variable */
 	socket_state = SOCKET_STATE_IDLE;
@@ -152,46 +163,52 @@ int8_t request_task_init_socket(char *_host, int16_t portno) {
 /*  Check for data, create and enable socket, write, read and evaluate.
  */
 int8_t request_task_run(void) {
+
+	if (_has_retry_timer_ended() != 0) {
+		return TASK_STATUS_BUSY;
+	}
+
+#if(DEBUG_REQUEST==1)
 	printf("REQUEST TASK, state: %d\n", socket_state);
+#endif
+
+
 	/* Declare function pointer, that is: int8_t myFun (void) {...} */
     int8_t (*state_fun_ptr) (void);
+
     /* Get pointer with regard to current socket state, accepts no arguments */
     state_fun_ptr = _get_socket_state_funciton();
 
     /* Call socket state function and save status output */
     int8_t status = state_fun_ptr();
 
-    /* Close socket if timer has elepsed */
-    if (_has_socket_timer_ended() == 0) {
-    	printf("SOCKET TIME ELAPSED\n");
-    	_report_socket_errno();
-        socket_state = SOCKET_STATE_CLOSE;
-        return SOCKET_STATUS_BUSY;
+    switch (status) {
+    case SOCKET_ERROR:
+    	return TASK_STATUS_ERROR;
+    	break;
+    case SOCKET_CHANGE_STATE:
+    	_state_timer_reset_max();		/* Reset timer on change */
+    	return TASK_STATUS_BUSY;
+    	break;
+    case SOCKET_NO_CHANGE:
+    	/* Close socket if timer has elepsed */
+		if (_has_max_state_timer_ended() == 0) {
+			_report_max_state_timer_ended();
+			socket_state = SOCKET_STATE_CLOSE;
+			return TASK_STATUS_BUSY;
+		}
+    	return TASK_STATUS_BUSY;
+    	break;
+    case SOCKET_IDLE:
+    	_state_timer_reset_max();		/* Idle is not time bound */
+    	return TASK_STATUS_IDLE;
+    	break;
+    default:
+    	printf("Unknown socket status\n");
+    	return TASK_STATUS_ERROR;
+    	break;
     }
 
-    /* Fatal error, quit execution */
-    if (status == -1) {
-    	return SOCKET_STATUS_ERROR;
-    }
-    /* State finished, switching to new one */
-    if (status == 0) {
-    	_reset_socket_timer();		/* Reset timer on change */
-    	return SOCKET_STATUS_BUSY;
-    }
-    /* State busy */
-    if (status == 1) {
-    	return SOCKET_STATUS_BUSY;
-    }
-    /* Idle operation, can go to sleep */
-    if (status == 2) {
-    	_reset_socket_timer();		/* Idle is not time bound */
-    	return SOCKET_STATUS_IDLE;
-    }
-    /* Unknow status */
-    else {
-    	printf("Unknown socket status\n");
-    	return SOCKET_STATUS_ERROR;
-    }
 }
 
 
@@ -352,7 +369,7 @@ int8_t _connect_socket(void){
 	printf("*\tSOCKET CONNECTED\n");
 #endif
 
-  return 0;
+	return 0;
 }
 
 
@@ -382,6 +399,7 @@ int8_t _add_request_data(void) {
 	printf("\tADDED REQUEST DATA (%lu):\n%s\n",
 		(long unsigned int)strlen(request_buf), request_buf);
 #endif
+
     return 0;
 }
 
@@ -397,7 +415,7 @@ int8_t _add_request_data(void) {
  *		 1: still writing
  */
 int8_t _write_socket(void) {
-    //static ssize_t bytes_sent = 0;
+
     /* Only write the bytes containing data (string) */
     ssize_t request_len = strlen(request_buf);
 
@@ -430,10 +448,9 @@ int8_t _write_socket(void) {
     	printf("*\tREQUEST WRITTEN (%lu): \n%s\n",
 			(long unsigned int)request_len, request_buf);
 #endif
-		/* Reset static vars */
-    	//bytes_sent = 0;
         /* Set socket state variable */
         socket_state = SOCKET_STATE_READ;
+
         return 0;
     }
 
@@ -453,10 +470,6 @@ int8_t _write_socket(void) {
  *		 1: still reading
  */
 int8_t _read_socket(void) {
-	/* Read bytes amount, or 'response_buf' write ptr */
-    //static ssize_t bytes_read = 0;
-    /* Previous amount of bytes, that were read */
-    //static ssize_t prev_read_result = 0;
 
     /* Read and get amount of bytes, that were read
      * 	-1: nothing new
@@ -479,9 +492,6 @@ int8_t _read_socket(void) {
     //if (result == 0) {
     if (result == 0 && errno != EINPROGRESS) {
 		_report_socket_errno();
-		/* Reset static vars */
-		//bytes_read = 0;
-		//prev_read_result = 0;
         socket_state = SOCKET_STATE_CLOSE;
         return 0;
     }
@@ -512,10 +522,8 @@ int8_t _read_socket(void) {
 			printf("*\tRESPONSE RECEIVED (%ld):\n%s\n",
 				(long int)bytes_read, response_buf);
 #endif
-    		/* Reset static vars */
-    		bytes_read = 0;
-    		prev_read_result = 0;
             socket_state = SOCKET_STATE_EVAL_RESPONSE;
+
     		return 0;
     	}
     }
@@ -576,13 +584,15 @@ int8_t _evaluate_socket(void) {
 	    	/* Refresh local timestamp variable and report error */
 			get_timestamp_raw(timestamp);
 			printf("SOCKET FATAL: INCREMENT EMPTY FIFO | %s\n", timestamp);
-			return 0;
+			//return 0;
+			return -1;
 		}
 		if (_check_fifo_for_new_data() == 0) {
 	        socket_state = SOCKET_STATE_ADD_DATA;
 		} else {
 	        socket_state = SOCKET_STATE_CLOSE;
 		}
+
 		return 0;
 	}
 
@@ -601,6 +611,15 @@ int8_t _evaluate_socket(void) {
  *		 1: retry
  */
 int8_t _close_socket(void) {
+
+	/* Every time when closing, reset retry timer.
+	 *  In normal operation 60 s will pass between incoming packages, so the
+	 * wait amount is negegible. If there is data in the FIFO for syncing,
+	 * close() will only get called at the end of the process.
+	 *  In the case of an error (disconnect), the all states are redirected
+	 * to CLOSE, so the execution will get slowed down, as desired. */
+	_timer_reset_retry();
+
     if (close(sockfd) != 0) {
 		_report_socket_errno();
         /* Common error when trying to close unopened socket */
@@ -675,25 +694,69 @@ void _report_socket_errno(void) {
  * 		0: max allowed time reached
  * 		1: timer still running
  */
-int8_t _has_socket_timer_ended(void) {
+int8_t _has_max_state_timer_ended(void) {
 	long int timer_now;
 	get_timestamp_epoch(&timer_now);
-	if (timer_now - socket_timer_start > SOCKET_MAX_ALLOWED_STATE_TIME_S) {
+	if (timer_now - state_change_time > SOCKET_MAX_STATE_TIME_S) {
 //      get_timestamp_raw(timestamp);
 //		printf("MAX ALLOWED SOCKET TIME REACHED: %d | %s\n",
 //				socket_state, timestamp);
 		/* Reset timer */
-    	_reset_socket_timer();
+    	_state_timer_reset_max();
 		return 0;
 	}
 	return 1;
 }
 
 
-/*	Reset socket state timer.
+/*	Check if max allowed time in socket state has ended and reset timer.
+ *
+ * 	return:
+ * 		0: max allowed time reached
+ * 		1: timer still running
  */
-void _reset_socket_timer(void) {
-	get_timestamp_epoch(&socket_timer_start);
+int8_t _has_retry_timer_ended(void) {
+	long int timer_now;
+	get_timestamp_epoch(&timer_now);
+	if (timer_now - retry_time > SOCKET_RETRY_STATE_TIME_S) {
+		/* Reset timer */
+    	//_timer_reset_retry();
+		return 0;
+	}
+	return 1;
+}
+
+
+/*	Reset all state timers.
+ */
+void _state_timer_reset_all(void) {
+	_state_timer_reset_max();
+	_timer_reset_retry();
+	return;
+}
+
+
+/*	Reset max state timer.
+ */
+void _state_timer_reset_max(void) {
+	get_timestamp_epoch(&state_change_time);
+	return;
+}
+
+
+/*	Reset retry state timer.
+ */
+void _timer_reset_retry(void) {
+	get_timestamp_epoch(&retry_time);
+	return;
+}
+
+
+/*	Prints max timer elapsed error.
+ */
+void _report_max_state_timer_ended (void) {
+	printf("SOCKET TIME ELAPSED\n");
+	_report_socket_errno();
 	return;
 }
 

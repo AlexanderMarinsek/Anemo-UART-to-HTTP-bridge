@@ -28,7 +28,7 @@
 
 
 #ifndef DEBUG_REQUEST
-#define DEBUG_REQUEST 1
+#define DEBUG_REQUEST (0)
 #endif
 
 /* Socket state codes */
@@ -42,13 +42,15 @@
 #define SOCKET_STATE_EVAL_RESPONSE		6
 #define SOCKET_STATE_CLOSE				7
 
-/* Socket status codes (returned by 'run' function) */
-#define SOCKET_STATUS_ERROR				-1
-#define SOCKET_STATUS_IDLE				0
-#define SOCKET_STATUS_BUSY				1
+#define SOCKET_ERROR					-1
+#define SOCKET_CHANGE_STATE				0
+#define SOCKET_NO_CHANGE				1
+#define SOCKET_IDLE						2
 
 /* Max seconds in individual socket state */
-#define SOCKET_MAX_ALLOWED_STATE_TIME_S		15
+//#define SOCKET_MAX_ALLOWED_STATE_TIME_S		15
+#define SOCKET_MAX_STATE_TIME_S				15
+#define SOCKET_RETRY_STATE_TIME_S			3
 
 
 /* Request buffer (actual size is number of entries + 1)
