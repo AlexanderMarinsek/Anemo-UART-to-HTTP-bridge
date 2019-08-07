@@ -4,8 +4,13 @@ Receives [Anemo embedded platform](https://bitbucket.org/AlexanderMarinsek/riot-
 
 *Primarily indended for use with RPi and other Linux based devices.*
 
-States composition example for the request task:
+
+States composition example for the *request task*:
+
 ![States composition](./img/request_task_states.png)
+
+
+======
 
 ## Installation
 
